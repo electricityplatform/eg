@@ -153,7 +153,299 @@
             }, 10000);
         }
 
-        // ================= دالة عرض شاشة البيانات الشخصية (عرض / تعديل) =================
+        // ================= دالة عرض شاشة بيانات المستخدمين مع الفلترة الهرمية =================
+        async function renderUserProfilesScreen() {
+            toggleSidebar();
+
+            const container = document.getElementById('appContainer');
+            container.innerHTML = `
+                ${getHeaderTemplate()}
+                <div class="flex items-center justify-between mb-3 flex-shrink-0 flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="renderMainDashboard()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+                            <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                            <span>رجوع</span>
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <!-- زر الفلتر التفاعلي -->
+                        <button type="button" onclick="openFilterModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                            <span>فلترة البيانات</span>
+                        </button>
+                        <button type="button" onclick="resetUserFilters()" id="resetFilterBtn" class="hidden bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
+                            إلغاء الفلتر
+                        </button>
+                    </div>
+                </div>
+
+                <!-- مؤشر الفلتر النشط حالياً -->
+                <div id="activeFilterBadge" class="hidden bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-semibold mb-3 flex items-center justify-between flex-shrink-0">
+                    <span id="activeFilterText">---</span>
+                </div>
+
+                <h2 class="text-sm sm:text-base font-bold text-gray-800 mb-2">بيانات المستخدمين</h2>
+
+                <div id="userProfilesTableContainer" class="flex-1 overflow-y-auto p-1">
+                    <div class="text-center text-gray-400 text-sm py-8">جاري جلب بيانات المستخدمين...</div>
+                </div>
+
+                <!-- نافذة الفلترة الهرمية المنبثقة (Modal) -->
+                <div id="filterModalOverlay" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4 transition-opacity opacity-0 duration-300">
+                    <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-4 transform scale-95 transition-transform duration-300" id="filterModalContent">
+                        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                            <h3 class="font-bold text-gray-800 text-base" id="filterModalTitle">اختر نوع الفلترة</h3>
+                            <button onclick="closeFilterModal()" class="text-gray-400 hover:text-red-500 p-1 rounded-xl">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <div id="filterModalBody" class="space-y-2">
+                            <!-- المحتوى الديناميكي للخطوات -->
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            loadDynamicMenuIntoSidebar();
+            window.allUserProfilesCache = []; 
+
+            const tableContainer = document.getElementById('userProfilesTableContainer');
+            try {
+                const { data, error } = await supabaseClient.rpc('get_user_profiles', {
+                    p_user_id: currentUserId
+                });
+
+                if (error) {
+                    tableContainer.innerHTML = `<div class="text-center text-red-400 text-sm py-8">خطأ في جلب البيانات: ${error.message}</div>`;
+                    return;
+                }
+
+                let profilesList = [];
+                if (Array.isArray(data)) {
+                    profilesList = data;
+                } else if (typeof data === 'string') {
+                    try { profilesList = JSON.parse(data); } catch(e){}
+                }
+
+                window.allUserProfilesCache = profilesList;
+                renderProfilesTableHTML(profilesList);
+
+            } catch (err) {
+                console.error(err);
+                tableContainer.innerHTML = `<div class="text-center text-red-400 text-sm py-8">حدث خطأ غير متوقع</div>`;
+            }
+        }
+
+        // ================= فتح وإغلاق نافذة الفلتر =================
+        function openFilterModal() {
+            const overlay = document.getElementById('filterModalOverlay');
+            const content = document.getElementById('filterModalContent');
+            if (!overlay || !content) return;
+
+            overlay.classList.remove('hidden');
+            setTimeout(() => {
+                overlay.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 10);
+
+            showMainFilterOptions();
+        }
+
+        function closeFilterModal() {
+            const overlay = document.getElementById('filterModalOverlay');
+            const content = document.getElementById('filterModalContent');
+            if (!overlay || !content) return;
+
+            overlay.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => overlay.classList.add('hidden'), 300);
+        }
+
+        // ================= الخطوة 1: القائمة الرئيسية للفلتر (رتبة أو محافظة) =================
+        function showMainFilterOptions() {
+            document.getElementById('filterModalTitle').innerText = 'اختر نوع الفلترة';
+            document.getElementById('filterModalBody').innerHTML = `
+                <button onclick="showRoleFilterOptions()" class="w-full bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 p-3.5 rounded-2xl text-right font-semibold text-gray-800 transition-all flex items-center justify-between cursor-pointer">
+                    <span>فلترة بناءً على الرتبة</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+                <button onclick="showGovTypeOptions()" class="w-full bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 p-3.5 rounded-2xl text-right font-semibold text-gray-800 transition-all flex items-center justify-between cursor-pointer">
+                    <span>فلترة بناءً على المحافظة</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            `;
+        }
+
+        // ================= الخطوة 2أ: عرض خيارات الرتب =================
+        function showRoleFilterOptions() {
+            const roles = ['أدمن', 'مدير', 'مندوب', 'تاجر', 'فنى'];
+            document.getElementById('filterModalTitle').innerText = 'اختر الرتبة المطلوبة';
+            document.getElementById('filterModalBody').innerHTML = `
+                <button onclick="showMainFilterOptions()" class="text-xs text-blue-600 font-semibold mb-2 flex items-center gap-1 cursor-pointer">
+                    <svg class="w-3.5 h-3.5 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    <span>رجوع للخلف</span>
+                </button>
+                <div class="space-y-2 max-h-60 overflow-y-auto">
+                    ${roles.map(role => `
+                        <button onclick="applyRoleFilter('${role}')" class="w-full bg-gray-50 hover:bg-blue-50 border border-gray-200 p-3 rounded-xl text-right font-semibold text-gray-800 transition-all cursor-pointer">
+                            ${role}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // ================= الخطوة 2ب: اختيار نوع المحافظة (متجر، محل، توصيل) =================
+        function showGovTypeOptions() {
+            document.getElementById('filterModalTitle').innerText = 'اختر نوع المحافظة';
+            document.getElementById('filterModalBody').innerHTML = `
+                <button onclick="showMainFilterOptions()" class="text-xs text-blue-600 font-semibold mb-2 flex items-center gap-1 cursor-pointer">
+                    <svg class="w-3.5 h-3.5 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    <span>رجوع للخلف</span>
+                </button>
+                <div class="space-y-2">
+                    <button onclick="showGovernoratesList('store_city', 'محافظة المتجر')" class="w-full bg-gray-50 hover:bg-blue-50 border border-gray-200 p-3.5 rounded-xl text-right font-semibold text-gray-800 transition-all cursor-pointer">
+                        محافظة المتجر
+                    </button>
+                    <button onclick="showGovernoratesList('shop_city', 'محافظة المحل')" class="w-full bg-gray-50 hover:bg-blue-50 border border-gray-200 p-3.5 rounded-xl text-right font-semibold text-gray-800 transition-all cursor-pointer">
+                        محافظة المحل
+                    </button>
+                    <button onclick="showGovernoratesList('delivery_city', 'محافظة التوصيل')" class="w-full bg-gray-50 hover:bg-blue-50 border border-gray-200 p-3.5 rounded-xl text-right font-semibold text-gray-800 transition-all cursor-pointer">
+                        محافظة التوصيل
+                    </button>
+                </div>
+            `;
+        }
+
+        // ================= الخطوة 3: عرض قائمة المحافظات الـ 23 =================
+        function showGovernoratesList(cityColumnKey, labelName) {
+            document.getElementById('filterModalTitle').innerText = `اختر ${labelName}`;
+            document.getElementById('filterModalBody').innerHTML = `
+                <button onclick="showGovTypeOptions()" class="text-xs text-blue-600 font-semibold mb-2 flex items-center gap-1 cursor-pointer">
+                    <svg class="w-3.5 h-3.5 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    <span>رجوع لأنواع المحافظات</span>
+                </button>
+                <div class="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                    ${EGYPTIAN_GOVERNORATES.map(gov => `
+                        <button onclick="applyGovFilter('${cityColumnKey}', '${gov}', '${labelName}')" class="w-full bg-gray-50 hover:bg-blue-50 border border-gray-200 p-2.5 rounded-xl text-right font-semibold text-gray-800 transition-all cursor-pointer text-xs sm:text-sm">
+                            ${gov}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // ================= تطبيق فلتر الرتبة =================
+        function applyRoleFilter(role) {
+            closeFilterModal();
+            const filtered = window.allUserProfilesCache.filter(user => user.user_role && user.user_role.trim() === role);
+            renderProfilesTableHTML(filtered);
+            
+            showActiveFilterBadge(`فلتر نشط: الرتبة (${role})`);
+        }
+
+        // ================= تطبيق فلتر المحافظة المحدد =================
+        function applyGovFilter(columnKey, govName, labelName) {
+            closeFilterModal();
+            const filtered = window.allUserProfilesCache.filter(user => user[columnKey] && user[columnKey].trim() === govName);
+            renderProfilesTableHTML(filtered);
+
+            showActiveFilterBadge(`فلتر نشط: ${labelName} (${govName})`);
+        }
+
+        // ================= إظهار شريط الفلتر النشط =================
+        function showActiveFilterBadge(text) {
+            const badge = document.getElementById('activeFilterBadge');
+            const badgeText = document.getElementById('activeFilterText');
+            const resetBtn = document.getElementById('resetFilterBtn');
+
+            if (badge && badgeText && resetBtn) {
+                badgeText.innerText = text;
+                badge.classList.remove('hidden');
+                resetBtn.classList.remove('hidden');
+            }
+        }
+
+        // ================= إعادة تعيين الفلتر =================
+        function resetUserFilters() {
+            const badge = document.getElementById('activeFilterBadge');
+            const resetBtn = document.getElementById('resetFilterBtn');
+
+            if (badge) badge.classList.add('hidden');
+            if (resetBtn) resetBtn.classList.add('hidden');
+
+            if (window.allUserProfilesCache) {
+                renderProfilesTableHTML(window.allUserProfilesCache);
+            }
+        }
+
+        // ================= دالة رسم الجدول =================
+        function renderProfilesTableHTML(profilesList) {
+            const tableContainer = document.getElementById('userProfilesTableContainer');
+            if (!tableContainer) return;
+
+            if (profilesList.length > 0) {
+                tableContainer.innerHTML = `
+                    <div class="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+                        <table class="w-full text-right text-xs sm:text-sm whitespace-nowrap">
+                            <thead class="bg-gray-50 text-gray-700 border-b border-gray-200">
+                                <tr>
+                                    <th class="p-3.5 font-bold">الرتبة</th>
+                                    <th class="p-3.5 font-bold">الاسم</th>
+                                    <th class="p-3.5 font-bold">اسم المتجر</th>
+                                    <th class="p-3.5 font-bold">محافظة المتجر</th>
+                                    <th class="p-3.5 font-bold">منطقة المتجر</th>
+                                    <th class="p-3.5 font-bold">نطاق المتجر</th>
+                                    <th class="p-3.5 font-bold">عنوان المتجر</th>
+                                    <th class="p-3.5 font-bold">اسم المحل</th>
+                                    <th class="p-3.5 font-bold">محافظة المحل</th>
+                                    <th class="p-3.5 font-bold">منطقة المحل</th>
+                                    <th class="p-3.5 font-bold">نطاق المحل</th>
+                                    <th class="p-3.5 font-bold">عنوان المحل</th>
+                                    <th class="p-3.5 font-bold">محافظة التوصيل</th>
+                                    <th class="p-3.5 font-bold">منطقة التوصيل</th>
+                                    <th class="p-3.5 font-bold">نطاق التوصيل</th>
+                                    <th class="p-3.5 font-bold">رقم الهاتف</th>
+                                    <th class="p-3.5 font-bold">رقم الواتساب</th>
+                                    <th class="p-3.5 font-bold">البريد الإلكترونى</th>
+                                    <th class="p-3.5 font-bold">رمز المرور</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white">
+                                ${profilesList.map(user => `
+                                    <tr class="hover:bg-blue-50/50 transition-all">
+                                        <td class="p-3.5 font-bold text-blue-600" dir="auto">${user.user_role || '---'}</td>
+                                        <td class="p-3.5 font-semibold text-gray-800" dir="auto">${user.user_name || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.store_name || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.store_city || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.store_region || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.store_area || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.store_address || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.shop_name || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.shop_city || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.shop_region || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.shop_area || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.shop_address || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.delivery_city || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.delivery_region || '---'}</td>
+                                        <td class="p-3.5 text-gray-700" dir="auto">${user.delivery_area || '---'}</td>
+                                        <td class="p-3.5 font-mono text-gray-600" dir="ltr">${user.phone_number || '---'}</td>
+                                        <td class="p-3.5 font-mono text-gray-600" dir="ltr">${user.whatsapp_number || '---'}</td>
+                                        <td class="p-3.5 font-mono text-gray-600" dir="ltr">${user.gmail || '---'}</td>
+                                        <td class="p-3.5 font-mono text-gray-600" dir="ltr">${user.password || '---'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else {
+                tableContainer.innerHTML = `<div class="text-center text-gray-500 py-12 bg-gray-50 rounded-2xl border border-gray-200">لا توجد بيانات مطابقة للفلتر</div>`;
+            }
+        }
+
+        // ================= باقي الدوال (العرض، تسجيل الدخول، المنيو، إلخ كما هي تماماً) =================
         async function renderPersonalProfileScreen(isEditMode = false) {
             if (document.getElementById('sideMenu') && !document.getElementById('sideMenu').classList.contains('translate-x-full')) {
                 toggleSidebar();
@@ -179,7 +471,6 @@
                             </button>
                         `}
 
-                        <!-- زر حذف الحساب -->
                         <button type="button" onclick="handleDeletePersonalProfile()" class="bg-red-50 hover:bg-red-100 text-red-600 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 border border-red-200 cursor-pointer">
                             <span>حذف الحساب</span>
                         </button>
@@ -198,7 +489,6 @@
             await fetchAndDisplayPersonalProfile(isEditMode);
         }
 
-        // ================= دالة حذف الحساب الشخصي (عبر RPC الجديد) =================
         async function handleDeletePersonalProfile() {
             if (!currentUserId) {
                 alert("عفواً، لا يوجد مستخدم مسجل حالياً");
@@ -230,7 +520,6 @@
             }
         }
 
-        // ================= دالة جلب وعرض/تعديل البيانات الشخصية =================
         async function fetchAndDisplayPersonalProfile(isEditMode = false) {
             const profileContainer = document.getElementById('personalProfileContainer');
             if (!profileContainer) return;
@@ -301,7 +590,6 @@
                 }
 
                 if (!isEditMode) {
-                    // ----- وضع العرض (Read Only) -----
                     let contentHtml = orderedKeys
                         .filter(key => profileData.hasOwnProperty(key))
                         .map(key => {
@@ -325,7 +613,6 @@
 
                     profileContainer.innerHTML = contentHtml;
                 } else {
-                    // ----- وضع التعديل (Edit Form) -----
                     let formFieldsHtml = orderedKeys
                         .filter(key => profileData.hasOwnProperty(key))
                         .map(key => {
@@ -334,7 +621,6 @@
                             const isLtr = (key === 'phone_number' || key === 'whatsapp_number' || key === 'gmail' || key === 'password');
                             const isReadOnly = (key === 'user_role');
 
-                            // 1. المحافظة (store_city / shop_city / delivery_city)
                             if (key === 'store_city' || key === 'shop_city' || key === 'delivery_city') {
                                 const prefix = key.replace('_city', '');
                                 return `
@@ -351,7 +637,6 @@
                                 `;
                             }
 
-                            // 2. المنطقة (store_region / shop_region / delivery_region)
                             if (key === 'store_region' || key === 'shop_region' || key === 'delivery_region') {
                                 const prefix = key.replace('_region', '');
                                 const parentCity = profileData[`${prefix}_city`] || '';
@@ -372,7 +657,6 @@
                                 `;
                             }
 
-                            // 3. النطاق (store_area / shop_area / delivery_area) - رمادية وغير قابلة للتعديل
                             if (key === 'store_area' || key === 'shop_area' || key === 'delivery_area') {
                                 return `
                                     <div class="w-full space-y-1">
@@ -388,7 +672,6 @@
                                 `;
                             }
 
-                            // 4. رمز المرور مع العين
                             if (key === 'password') {
                                 return `
                                     <div class="w-full space-y-1">
@@ -440,7 +723,6 @@
             }
         }
 
-        // ================= دالة حفظ التغييرات واستدعاء الـ RPC =================
         async function handleSavePersonalProfile(e) {
             e.preventDefault();
 
@@ -493,7 +775,6 @@
             }
         }
 
-        // ================= دالة عرض شاشة تسجيل مندوب جديد =================
         async function renderRegisterRepresentativeScreen() {
             toggleSidebar();
 
@@ -514,53 +795,44 @@
 
                 <div class="flex-1 overflow-y-auto p-2">
                     <form onsubmit="handleRegisterRepresentative(event)" class="space-y-4 max-w-xl mx-auto bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-                        
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">الرتبة</label>
                             <input type="text" value="مندوب" disabled class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 text-sm font-bold text-center" dir="auto">
                         </div>
-
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">الاسم</label>
                             <input type="text" id="repName" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-gray-50 text-center" dir="auto" placeholder="ادخل اسم المندوب">
                         </div>
-
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">محافظة التوصيل</label>
                             <select id="repCity" onchange="updateRegionsDropdown('repCity', 'repRegion', 'repArea')" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-gray-50 text-center cursor-pointer">
                                 ${getGovernoratesOptionsHtml()}
                             </select>
                         </div>
-
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">منطقة التوصيل</label>
                             <select id="repRegion" onchange="updateAreasDropdown('repRegion', 'repArea')" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-gray-50 text-center cursor-pointer">
                                 <option value="">اختر المحافظة أولاً...</option>
                             </select>
                         </div>
-
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">نطاق التوصيل</label>
                             <select id="repArea" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-gray-50 text-center cursor-pointer">
                                 <option value="">اختر منطقة التوصيل أولاً...</option>
                             </select>
                         </div>
-
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">رقم الهاتف</label>
                             <input type="text" id="repPhone" required class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-gray-50 text-center" dir="ltr" placeholder="01xxxxxxxxx">
                         </div>
-
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">رقم الواتساب</label>
                             <input type="text" id="repWhatsapp" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-gray-50 text-center" dir="ltr" placeholder="01xxxxxxxxx">
                         </div>
-
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">البريد الإلكترونى</label>
                             <input type="email" id="repGmail" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-gray-50 text-center" dir="ltr" placeholder="example@gmail.com">
                         </div>
-
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">رمز المرور</label>
                             <div class="relative">
@@ -572,7 +844,6 @@
                                 </button>
                             </div>
                         </div>
-
                         <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all text-sm cursor-pointer">
                             حفظ وتسجيل المندوب
                         </button>
@@ -585,7 +856,6 @@
 
         async function handleRegisterRepresentative(e) {
             e.preventDefault();
-
             try {
                 const { data, error } = await supabaseClient.rpc('register_representative', {
                     p_user_id: currentUserId,
@@ -962,7 +1232,6 @@
             `;
         }
 
-        // ================= 2. دالة جلب المنيو الرئيسية (ديناميكية كما هي) =================
         async function loadDynamicMenuIntoSidebar() {
             const sidebarContainer = document.getElementById('sidebarContent');
             if (!sidebarContainer) return;
@@ -988,10 +1257,8 @@
 
                 if (menuItems && menuItems.length > 0) {
                     sidebarContainer.innerHTML = menuItems.map(item => {
-                        // الإجراء الافتراضي لأي عنصر (مثل بيانات المستخدمين) هو إظهار الـ alert المباشر
                         let clickAction = `alert('${item}')`;
                         
-                        // تخصيص الشاشات الأخرى التي تعمل بشكل كامل
                         if (item.includes('المستخدمون النشطون')) {
                             clickAction = "renderActiveUsersScreen()";
                         } else if (item.includes('سجل دخول المستخدمين')) {
@@ -1000,8 +1267,9 @@
                             clickAction = "renderRegisterRepresentativeScreen()";
                         } else if (item.includes('البيانات الشخصية')) {
                             clickAction = "renderPersonalProfileScreen()";
+                        } else if (item.includes('بيانات المستخدمين')) {
+                            clickAction = "renderUserProfilesScreen()";
                         }
-                        // ملاحظة: تم إلغاء التوجيه لدالة بيانات المستخدمين القديمة تماماً، فأصبح الضغط عليها يعرض alert('بيانات المستخدمين') أوتوماتيكياً.
 
                         return `
                             <div onclick="${clickAction}" class="w-full bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 p-3 rounded-xl cursor-pointer transition-all text-sm font-semibold text-gray-800 flex items-center justify-between">
@@ -1052,23 +1320,19 @@
                                         </button>
                                     </div>
                                 </div>
-                                
                                 <div class="flex items-center gap-2">
                                     <input type="checkbox" id="rememberMe" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
                                     <label for="rememberMe" class="text-xs font-semibold text-gray-600 cursor-pointer">تذكرني</label>
                                 </div>
-
                                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all text-sm">
                                     تسجيل الدخول
                                 </button>
                             </form>
                         </div>
-
                         <div class="relative my-6">
                             <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
                             <div class="relative flex justify-center text-xs uppercase"><span class="bg-white px-2 text-gray-400">أو</span></div>
                         </div>
-
                         <div>
                             <button onclick="loginAsVisitor()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl transition-all text-sm border border-gray-200">
                                 الدخول كزائر
@@ -1083,14 +1347,12 @@
                 const phoneInput = document.getElementById('loginPhone');
                 const passInput = document.getElementById('loginPassword');
                 const rememberCheckbox = document.getElementById('rememberMe');
-                
                 if (phoneInput) phoneInput.value = localStorage.getItem('saved_phone');
                 if (passInput) passInput.value = localStorage.getItem('saved_password');
                 if (rememberCheckbox) rememberCheckbox.checked = true;
             }
         }
 
-        // ================= 3. دالة تسجيل الدخول =================
         async function handleLoginSubmit(e) {
             e.preventDefault();
             const phone = document.getElementById('loginPhone').value.trim();
@@ -1139,7 +1401,6 @@
             }
 
             startHeartbeat();
-
             renderMainDashboard();
             loadDynamicMenuIntoSidebar(); 
         }
@@ -1154,16 +1415,13 @@
             loadDynamicMenuIntoSidebar();
         }
 
-        // ================= 4. دالة جلب الأقسام =================
         async function renderMainDashboard() {
             const html = `
                 ${getHeaderTemplate()}
-
                 <div class="flex-1 overflow-y-auto space-y-4 px-1">
                     <div class="mb-4">
                         <img src="https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=800&q=80" alt="Banner" class="w-full h-36 sm:h-48 object-cover rounded-2xl shadow-md">
                     </div>
-
                     <div id="partitionsContainer" class="space-y-3.5 pb-4">
                         <div class="text-center text-gray-400 text-sm py-4">جاري تحميل الأقسام...</div>
                     </div>
@@ -1345,7 +1603,6 @@
             loadDynamicMenuIntoSidebar();
         }
 
-        // ================= 5. دالة جلب قطع الغيار =================
         async function renderPartsScreen(modelName = '', modelCode = '', screenCompat = '', batteryModel = '') {
             selectedModel = modelName;
             selectedModelCode = modelCode ? decodeURIComponent(modelCode) : '';
