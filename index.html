@@ -41,7 +41,7 @@
 
     </div>
 
-    <!-- كود الجافاسكريبت لإدارة النظام والصفحات والـ RPC المحددة فقط -->
+    <!-- كود الجافاسكريبت لإدارة النظام والصفحات والـ RPC -->
     <script>
         // ================= 1. المتغيرات وإعدادات الاتصال =================
         const SUPABASE_URL = 'https://glwwvrgvbfygqbmqlnfn.supabase.co';
@@ -136,6 +136,17 @@
             }
         }
 
+        // ================= دالة إغلاق القائمة الجانبية برمجياً =================
+        function closeSidebar() {
+            const sidebar = document.getElementById('sideMenu');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (sidebar && overlay) {
+                sidebar.classList.add('translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
+        }
+
         // ================= نظام الهيرت بيت (Heartbeat) =================
         function startHeartbeat() {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -153,9 +164,230 @@
             }, 10000);
         }
 
+        // ================= شاشة مركز البيانات (Data Center Screen) =================
+        async function renderDataCenterScreen() {
+            closeSidebar();
+
+            const container = document.getElementById('appContainer');
+            container.innerHTML = `
+                ${getHeaderTemplate()}
+                <div class="flex items-center justify-between mb-4 flex-shrink-0 flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="renderMainDashboard()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+                            <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                            <span>رجوع</span>
+                        </button>
+                        <button type="button" onclick="fetchAndDisplayDataCenterMenu();" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 border border-blue-200 cursor-pointer" title="تحديث البيانات">
+                            <svg class="w-4 h-4 transform transition-transform hover:rotate-180 duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            <span>تحديث</span>
+                        </button>
+                    </div>
+                    <h2 class="text-sm sm:text-base font-bold text-gray-800 flex items-center gap-2">
+                        <span class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></span>
+                        مركز البيانات
+                    </h2>
+                </div>
+
+                <div id="dataCenterContainer" class="flex-1 overflow-y-auto space-y-3 p-1">
+                    <div class="text-center text-gray-400 text-sm py-8">جاري جلب عناصر مركز البيانات...</div>
+                </div>
+            `;
+
+            loadDynamicMenuIntoSidebar();
+            await fetchAndDisplayDataCenterMenu();
+        }
+
+        async function fetchAndDisplayDataCenterMenu() {
+            const dataCenterContainer = document.getElementById('dataCenterContainer');
+            if (!dataCenterContainer) return;
+
+            dataCenterContainer.innerHTML = `<div class="text-center text-gray-400 text-sm py-8">جاري التحديث...</div>`;
+
+            try {
+                const { data, error } = await supabaseClient.rpc('get_data_center_menu', {
+                    p_user_id: currentUserId
+                });
+
+                if (error) {
+                    dataCenterContainer.innerHTML = `<div class="text-center text-red-400 text-sm py-8">خطأ في جلب البيانات: ${error.message}</div>`;
+                    return;
+                }
+
+                let itemsList = [];
+                if (Array.isArray(data)) {
+                    itemsList = data;
+                } else if (typeof data === 'string') {
+                    try { itemsList = JSON.parse(data); } catch(e){}
+                }
+
+                if (itemsList.length > 0) {
+                    dataCenterContainer.innerHTML = itemsList.map((item, index) => {
+                        const style = getRotatingCardStyle(index);
+                        let clickAction = `alert('تم النقر على قسم: ${item}')`;
+                        
+                        // ربط زر جدول المستخدمين بالشيت التفاعلي
+                        if (item.includes('جدول المستخدمين') || item.includes('بيانات المستخدمين')) {
+                            clickAction = "renderUsersDataCenterSheet()";
+                        }
+
+                        return `
+                            <div onclick="${clickAction}" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
+                                <span class="font-bold text-gray-800" dir="auto">${item}</span>
+                                <svg class="w-5 h-5 ${style.icon} flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    dataCenterContainer.innerHTML = `<div class="text-center text-gray-500 py-12 bg-gray-50 rounded-2xl border border-gray-200"><p class="font-semibold">لا توجد عناصر متاحة أو ليس لديك صلاحية العرض</p></div>`;
+                }
+
+            } catch (err) {
+                console.error(err);
+                dataCenterContainer.innerHTML = `<div class="text-center text-red-400 text-sm py-8">حدث خطأ غير متوقع</div>`;
+            }
+        }
+
+        // ================= شيت جدول المستخدمين التفاعلي (مركز البيانات) =================
+        async function renderUsersDataCenterSheet() {
+            closeSidebar();
+
+            const container = document.getElementById('appContainer');
+            container.innerHTML = `
+                ${getHeaderTemplate()}
+                <div class="flex items-center justify-between mb-3 flex-shrink-0 flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="renderDataCenterScreen()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+                            <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                            <span>رجوع لمركز البيانات</span>
+                        </button>
+                        <button type="button" onclick="saveUsersDataCenterSheetToDB()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                            <span>حفظ التعديلات لقاعدة البيانات</span>
+                        </button>
+                    </div>
+                    <h2 class="text-sm sm:text-base font-bold text-gray-800">شيت جدول المستخدمين (مركز البيانات)</h2>
+                </div>
+
+                <!-- حاوية الجدول القابلة للتعديل -->
+                <div id="usersSheetContainer" class="flex-1 overflow-y-auto p-1">
+                    <div class="text-center text-gray-400 text-sm py-8">جاري جلب بيانات المستخدمين كشيت...</div>
+                </div>
+            `;
+
+            loadDynamicMenuIntoSidebar();
+            await loadUsersDataIntoSheetGrid();
+        }
+
+        async function loadUsersDataIntoSheetGrid() {
+            const sheetContainer = document.getElementById('usersSheetContainer');
+            if (!sheetContainer) return;
+
+            try {
+                const { data, error } = await supabaseClient.rpc('get_users_for_data_center', {
+                    p_user_id: currentUserId
+                });
+
+                if (error) {
+                    sheetContainer.innerHTML = `<div class="text-center text-red-400 text-sm py-8">خطأ في جلب البيانات: ${error.message}</div>`;
+                    return;
+                }
+
+                let usersList = [];
+                if (Array.isArray(data)) {
+                    usersList = data;
+                } else if (typeof data === 'string') {
+                    try { usersList = JSON.parse(data); } catch(e){}
+                }
+
+                if (usersList.length > 0) {
+                    const sampleObj = usersList[0];
+                    const columns = Object.keys(sampleObj);
+
+                    sheetContainer.innerHTML = `
+                        <div class="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm bg-white">
+                            <table class="w-full text-right text-xs sm:text-sm border-collapse" id="editableUsersTable">
+                                <thead class="bg-gray-50 text-gray-700 border-b border-gray-200">
+                                    <tr>
+                                        ${columns.map(col => `<th class="p-3.5 font-bold whitespace-nowrap min-w-[160px]">${col}</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    ${usersList.map((user, idx) => `
+                                        <tr class="hover:bg-blue-50/40 transition-all" data-id="${user.id}">
+                                            ${columns.map(col => {
+                                                const val = user[col] !== null && user[col] !== undefined ? user[col] : '';
+                                                const isId = (col === 'id' || col === 'created_at' || col === 'last_active_at');
+                                                if (isId) {
+                                                    return `<td class="p-3.5 font-mono text-gray-500 text-xs whitespace-nowrap min-w-[160px]" dir="ltr">${val}</td>`;
+                                                }
+                                                return `
+                                                    <td class="p-2 min-w-[160px]">
+                                                        <input type="text" data-field="${col}" value="${val}" class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs sm:text-sm w-full focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all" dir="auto">
+                                                    </td>
+                                                `;
+                                            }).join('')}
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                } else {
+                    sheetContainer.innerHTML = `<div class="text-center text-gray-500 py-12">لا توجد بيانات مستخدمين متاحة</div>`;
+                }
+            } catch (err) {
+                console.error(err);
+                sheetContainer.innerHTML = `<div class="text-center text-red-400 text-sm py-8">حدث خطأ غير متوقع</div>`;
+            }
+        }
+
+        async function saveUsersDataCenterSheetToDB() {
+            const table = document.getElementById('editableUsersTable');
+            if (!table) return;
+
+            const rows = table.querySelectorAll('tbody tr');
+            const payload = [];
+
+            rows.forEach(row => {
+                const id = row.getAttribute('data-id');
+                const inputs = row.querySelectorAll('input[data-field]');
+                const rowData = { id: id };
+
+                inputs.forEach(input => {
+                    const field = input.getAttribute('data-field');
+                    const rawVal = input.value.trim();
+                    rowData[field] = rawVal !== '' ? rawVal : null;
+                });
+
+                payload.push(rowData);
+            });
+
+            try {
+                const { data, error } = await supabaseClient.rpc('update_users_for_data_center', {
+                    p_user_id: currentUserId,
+                    p_payload: payload
+                });
+
+                if (error) {
+                    alert("حدث خطأ أثناء الحفظ: " + error.message);
+                    return;
+                }
+
+                if (data && data.success) {
+                    alert(data.message || "تم حفظ التعديلات بنجاح!");
+                    await loadUsersDataIntoSheetGrid();
+                } else {
+                    alert(data?.message || "فشل حفظ التعديلات");
+                }
+            } catch (err) {
+                console.error("Save users sheet error:", err);
+                alert("حدث خطأ غير متوقع أثناء الحفظ");
+            }
+        }
+
         // ================= دالة عرض شاشة المستخدمين الجدد (آخر 24 ساعة) =================
         async function renderNewUsersScreen() {
-            toggleSidebar();
+            closeSidebar();
 
             const container = document.getElementById('appContainer');
             container.innerHTML = `
@@ -315,7 +547,7 @@
         }
 
         async function renderUserProfilesScreen() {
-            toggleSidebar();
+            closeSidebar();
 
             const container = document.getElementById('appContainer');
             container.innerHTML = `
@@ -403,7 +635,6 @@
             }
         }
 
-        // ================= دالة الحفظ التلقائي مع تنبيه الـ alert المباشر =================
         async function handleAutoUpdateUser(targetUserId) {
             const roleEl = document.getElementById(`role_${targetUserId}`);
             const storeAreaEl = document.getElementById(`store_area_${targetUserId}`);
@@ -662,7 +893,6 @@
 
                                     const userId = user.id;
 
-                                    // استخراج النطاقات بناءً على المنطقة لكل قسم
                                     const storeAreas = getAreasListForRegion(user.store_region);
                                     const shopAreas = getAreasListForRegion(user.shop_region);
                                     const deliveryAreas = getAreasListForRegion(user.delivery_region);
@@ -727,9 +957,7 @@
         }
 
         async function renderPersonalProfileScreen(isEditMode = false) {
-            if (document.getElementById('sideMenu') && !document.getElementById('sideMenu').classList.contains('translate-x-full')) {
-                toggleSidebar();
-            }
+            closeSidebar();
 
             const container = document.getElementById('appContainer');
             container.innerHTML = `
@@ -1054,7 +1282,7 @@
         }
 
         async function renderRegisterRepresentativeScreen() {
-            toggleSidebar();
+            closeSidebar();
 
             const container = document.getElementById('appContainer');
 
@@ -1165,7 +1393,7 @@
         }
 
         async function renderLoginHistoryScreen() {
-            toggleSidebar();
+            closeSidebar();
 
             const container = document.getElementById('appContainer');
             container.innerHTML = `
@@ -1358,7 +1586,7 @@
         }
 
         async function renderActiveUsersScreen() {
-            toggleSidebar();
+            closeSidebar();
 
             const container = document.getElementById('appContainer');
             container.innerHTML = `
@@ -1603,6 +1831,8 @@
                             clickAction = "renderPersonalProfileScreen()";
                         } else if (item.includes('بيانات المستخدمين')) {
                             clickAction = "renderUserProfilesScreen()";
+                        } else if (item.includes('مركز البيانات')) {
+                            clickAction = "renderDataCenterScreen()";
                         }
 
                         return `
@@ -1784,8 +2014,14 @@
                 if (container && partitionsList && partitionsList.length > 0) {
                     let partitionsHtml = partitionsList.map(name => {
                         let clickAction = "";
-                        if (name.includes('قطع الغيار') || name.includes('شراء')) {
+                        if (name.includes('شراء قطع الغيار')) {
+                            clickAction = "renderBrandsScreen()";
+                        } else if (name.includes('قطع الغيار')) {
                             clickAction = "renderPartsScreen()";
+                        } else if (name.includes('الماركات')) {
+                            clickAction = "renderBrandsScreen()";
+                        } else if (name.includes('الموديلات')) {
+                            clickAction = "renderModelsScreen('Samsung')";
                         } else {
                             clickAction = `alert('قسم ${name}')`;
                         }
@@ -1807,7 +2043,9 @@
             }
         }
 
-        async function renderPartsScreen() {
+        async function renderBrandsScreen(partName = '') {
+            if (partName) selectedPart = partName;
+
             document.getElementById('appContainer').innerHTML = `
                 ${getHeaderTemplate()}
                 <div class="flex items-center justify-between mb-4 flex-shrink-0">
@@ -1815,57 +2053,7 @@
                         <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                         <span>رجوع</span>
                     </button>
-                    <h2 class="text-sm sm:text-base font-bold text-gray-800">قائمة قطع الغيار</h2>
-                </div>
-                <div id="partsListContainer" class="flex-1 overflow-y-auto space-y-3 p-1">
-                    <div class="text-center text-gray-400 text-sm py-8">جاري جلب قطع الغيار...</div>
-                </div>
-            `;
-
-            loadDynamicMenuIntoSidebar();
-
-            let sparePartsList = [];
-            try {
-                const { data, error } = await supabaseClient.rpc('get_spare_parts');
-
-                if (error) {
-                    showSystemAlert("فشل جلب قطع الغيار", currentUserId || "غير معروف", "دالة get_spare_parts", error.message);
-                } else if (data) {
-                    sparePartsList = data;
-                }
-            } catch (err) {
-                showSystemAlert("استثناء في جلب قطع الغيار", currentUserId || "غير معروف", "تنفيذ RPC", err.message);
-            }
-
-            const container = document.getElementById('partsListContainer');
-            if (!container) return;
-
-            if (sparePartsList.length > 0) {
-                container.innerHTML = sparePartsList.map((part, index) => {
-                    const style = getRotatingCardStyle(index);
-                    return `
-                        <div onclick="renderBrandsScreen('${part}')" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
-                            <span class="font-bold text-gray-800 text-right flex-1 ml-3" dir="auto">${part}</span>
-                            <svg class="w-5 h-5 ${style.icon} flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                        </div>
-                    `;
-                }).join('');
-            } else {
-                container.innerHTML = `<div class="text-center text-gray-500 py-6">لا توجد قطع غيار متاحة في الجدول حالياً</div>`;
-            }
-        }
-
-        async function renderBrandsScreen(partName = '') {
-            if (partName) selectedPart = partName;
-
-            document.getElementById('appContainer').innerHTML = `
-                ${getHeaderTemplate()}
-                <div class="flex items-center justify-between mb-4 flex-shrink-0">
-                    <button onclick="renderPartsScreen()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
-                        <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                        <span>رجوع</span>
-                    </button>
-                    <h2 class="text-sm sm:text-base font-bold text-gray-800">اختر الماركة (${selectedPart || 'قطعة الغيار'})</h2>
+                    <h2 class="text-sm sm:text-base font-bold text-gray-800">اختر الماركة (${selectedPart || 'شراء قطع الغيار'})</h2>
                 </div>
                 <div id="brandsListContainer" class="flex-1 overflow-y-auto space-y-3 p-1">
                     <div class="text-center text-gray-400 text-sm py-8">جاري جلب الماركات...</div>
@@ -1963,7 +2151,7 @@
                     const escapedBattery = m.battery_model ? encodeURIComponent(m.battery_model) : '';
                     const escapedCode = m.model_code ? encodeURIComponent(m.model_code) : '';
                     return `
-                        <div onclick="renderPartDetails('${m.device_name}', '${escapedCode}', '${escapedCompat}', '${escapedBattery}')" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
+                        <div onclick="renderPartsScreenAfterModel('${m.device_name}', '${escapedCode}', '${escapedCompat}', '${escapedBattery}')" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
                             <div class="text-right">
                                 <span class="font-bold text-gray-800 block" dir="auto">${m.device_name}</span>
                                 ${m.model_code ? `<span class="text-xs text-gray-500 block mt-0.5" dir="auto">الكود: ${m.model_code}</span>` : ''}
@@ -1993,13 +2181,62 @@
             loadDynamicMenuIntoSidebar();
         }
 
-        async function renderPartDetails(modelName = '', modelCode = '', screenCompat = '', batteryModel = '') {
+        async function renderPartsScreenAfterModel(modelName = '', modelCode = '', screenCompat = '', batteryModel = '') {
             selectedModel = modelName;
             selectedModelCode = modelCode ? decodeURIComponent(modelCode) : '';
             currentScreenCompatibility = screenCompat ? decodeURIComponent(screenCompat) : '';
             currentBatteryModel = batteryModel ? decodeURIComponent(batteryModel) : '';
 
-            alert(`بيانات شراء المنتج:\n- القطعة: ${selectedPart}\n- الماركة: ${selectedBrand}\n- الموديل: ${selectedModel}\n- الكود: ${selectedModelCode}`);
+            document.getElementById('appContainer').innerHTML = `
+                ${getHeaderTemplate()}
+                <div class="flex items-center justify-between mb-4 flex-shrink-0">
+                    <button onclick="renderModelsScreen('${selectedBrand}')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        <span>رجوع</span>
+                    </button>
+                    <h2 class="text-sm sm:text-base font-bold text-gray-800">اختر قطعة الغيار (${selectedModel})</h2>
+                </div>
+                <div id="partsListContainerAfter" class="flex-1 overflow-y-auto space-y-3 p-1">
+                    <div class="text-center text-gray-400 text-sm py-8">جاري جلب قطع الغيار...</div>
+                </div>
+            `;
+
+            loadDynamicMenuIntoSidebar();
+
+            let sparePartsList = [];
+            try {
+                const { data, error } = await supabaseClient.rpc('get_spare_parts');
+
+                if (error) {
+                    showSystemAlert("فشل جلب قطع الغيار", currentUserId || "غير معروف", "دالة get_spare_parts", error.message);
+                } else if (data) {
+                    sparePartsList = data;
+                }
+            } catch (err) {
+                showSystemAlert("استثناء في جلب قطع الغيار", currentUserId || "غير معروف", "تنفيذ RPC", err.message);
+            }
+
+            const container = document.getElementById('partsListContainerAfter');
+            if (!container) return;
+
+            if (sparePartsList.length > 0) {
+                container.innerHTML = sparePartsList.map((part, index) => {
+                    const style = getRotatingCardStyle(index);
+                    return `
+                        <div onclick="renderPartDetailsFinal('${part}')" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
+                            <span class="font-bold text-gray-800 text-right flex-1 ml-3" dir="auto">${part}</span>
+                            <svg class="w-5 h-5 ${style.icon} flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                container.innerHTML = `<div class="text-center text-gray-500 py-6">لا توجد قطع غيار متاحة حالياً</div>`;
+            }
+        }
+
+        async function renderPartDetailsFinal(partName = '') {
+            selectedPart = partName;
+            alert(`بيانات الشراء النهائية:\n- الماركة: ${selectedBrand}\n- الموديل: ${selectedModel}\n- الكود: ${selectedModelCode}\n- قطعة الغيار: ${selectedPart}`);
         }
 
         window.onload = function() {
