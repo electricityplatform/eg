@@ -186,7 +186,6 @@
             await fetchAndDisplayNewUsers();
         }
 
-        // ================= دالة جلب وعرض بيانات المستخدمين الجدد =================
         async function fetchAndDisplayNewUsers() {
             const tableContainer = document.getElementById('newUsersTableContainer');
             const titleElement = document.getElementById('newUsersTitle');
@@ -315,7 +314,6 @@
             }
         }
 
-        // ================= دالة عرض شاشة بيانات المستخدمين =================
         async function renderUserProfilesScreen() {
             toggleSidebar();
 
@@ -373,7 +371,6 @@
             await fetchAndDisplayUserProfiles();
         }
 
-        // ================= دالة جلب وعرض بيانات المستخدمين =================
         async function fetchAndDisplayUserProfiles() {
             const tableContainer = document.getElementById('userProfilesTableContainer');
             if (!tableContainer) return;
@@ -403,6 +400,39 @@
             } catch (err) {
                 console.error(err);
                 tableContainer.innerHTML = `<div class="text-center text-red-400 text-sm py-8">حدث خطأ غير متوقع</div>`;
+            }
+        }
+
+        // ================= دالة الحفظ التلقائي مع تنبيه الـ alert المباشر =================
+        async function handleAutoUpdateUser(targetUserId) {
+            const roleEl = document.getElementById(`role_${targetUserId}`);
+            const storeAreaEl = document.getElementById(`store_area_${targetUserId}`);
+            const shopAreaEl = document.getElementById(`shop_area_${targetUserId}`);
+            const deliveryAreaEl = document.getElementById(`delivery_area_${targetUserId}`);
+
+            try {
+                const { data, error } = await supabaseClient.rpc('update_user_profiles', {
+                    p_user_id: currentUserId,
+                    p_target_user_id: targetUserId,
+                    p_user_role: roleEl ? roleEl.value : null,
+                    p_store_area: storeAreaEl ? storeAreaEl.value : null,
+                    p_shop_area: shopAreaEl ? shopAreaEl.value : null,
+                    p_delivery_area: deliveryAreaEl ? deliveryAreaEl.value : null
+                });
+
+                if (error) {
+                    alert("خطأ أثناء التحديث: " + error.message);
+                    return;
+                }
+
+                if (data && data.success) {
+                    alert(data.message || "تم تحديث البيانات بنجاح");
+                } else {
+                    alert(data?.message || "تعذر تنفيذ التحديث");
+                }
+            } catch (err) {
+                console.error("Auto update user error:", err);
+                alert("حدث خطأ غير متوقع أثناء الحفظ");
             }
         }
 
@@ -630,26 +660,56 @@
                                         datePart = rawTime || '---';
                                     }
 
+                                    const userId = user.id;
+
+                                    // استخراج النطاقات بناءً على المنطقة لكل قسم
+                                    const storeAreas = getAreasListForRegion(user.store_region);
+                                    const shopAreas = getAreasListForRegion(user.shop_region);
+                                    const deliveryAreas = getAreasListForRegion(user.delivery_region);
+
                                     return `
                                         <tr class="hover:bg-blue-50/50 transition-all">
                                             <td class="p-3.5 font-mono text-gray-700 leading-tight min-w-[130px]" dir="ltr">
                                                 <div class="font-bold text-gray-800">${datePart}</div>${timePart ? `<div class="text-[11px] text-gray-500 mt-0.5">${timePart}</div>` : ''}
                                             </td>
-                                            <td class="p-3.5 font-bold text-blue-600" dir="auto">${user.user_role || '---'}</td>
+                                            <td class="p-3.5 font-bold text-blue-600" dir="auto">
+                                                <select id="role_${userId}" onchange="handleAutoUpdateUser('${userId}')" class="bg-white border border-gray-300 rounded-lg p-1 text-xs font-semibold cursor-pointer">
+                                                    <option value="أدمن" ${user.user_role === 'أدمن' ? 'selected' : ''}>أدمن</option>
+                                                    <option value="مدير" ${user.user_role === 'مدير' ? 'selected' : ''}>مدير</option>
+                                                    <option value="مندوب" ${user.user_role === 'مندوب' ? 'selected' : ''}>مندوب</option>
+                                                    <option value="تاجر" ${user.user_role === 'تاجر' ? 'selected' : ''}>تاجر</option>
+                                                    <option value="فنى" ${user.user_role === 'فنى' ? 'selected' : ''}>فنى</option>
+                                                </select>
+                                            </td>
                                             <td class="p-3.5 font-semibold text-gray-800" dir="auto">${user.user_name || '---'}</td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.store_name || '---'}</td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.store_city || '---'}</td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.store_region || '---'}</td>
-                                            <td class="p-3.5 text-gray-700" dir="auto">${user.store_area || '---'}</td>
+                                            <td class="p-3.5 text-gray-700" dir="auto">
+                                                <select id="store_area_${userId}" onchange="handleAutoUpdateUser('${userId}')" class="bg-white border border-gray-300 rounded-lg p-1 text-xs font-semibold cursor-pointer">
+                                                    <option value="">اختر النطاق...</option>
+                                                    ${storeAreas.map(a => `<option value="${a}" ${user.store_area === a ? 'selected' : ''}>${a}</option>`).join('')}
+                                                </select>
+                                            </td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.store_address || '---'}</td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.shop_name || '---'}</td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.shop_city || '---'}</td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.shop_region || '---'}</td>
-                                            <td class="p-3.5 text-gray-700" dir="auto">${user.shop_area || '---'}</td>
+                                            <td class="p-3.5 text-gray-700" dir="auto">
+                                                <select id="shop_area_${userId}" onchange="handleAutoUpdateUser('${userId}')" class="bg-white border border-gray-300 rounded-lg p-1 text-xs font-semibold cursor-pointer">
+                                                    <option value="">اختر النطاق...</option>
+                                                    ${shopAreas.map(a => `<option value="${a}" ${user.shop_area === a ? 'selected' : ''}>${a}</option>`).join('')}
+                                                </select>
+                                            </td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.shop_address || '---'}</td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.delivery_city || '---'}</td>
                                             <td class="p-3.5 text-gray-700" dir="auto">${user.delivery_region || '---'}</td>
-                                            <td class="p-3.5 text-gray-700" dir="auto">${user.delivery_area || '---'}</td>
+                                            <td class="p-3.5 text-gray-700" dir="auto">
+                                                <select id="delivery_area_${userId}" onchange="handleAutoUpdateUser('${userId}')" class="bg-white border border-gray-300 rounded-lg p-1 text-xs font-semibold cursor-pointer">
+                                                    <option value="">اختر النطاق...</option>
+                                                    ${deliveryAreas.map(a => `<option value="${a}" ${user.delivery_area === a ? 'selected' : ''}>${a}</option>`).join('')}
+                                                </select>
+                                            </td>
                                             <td class="p-3.5 font-mono text-gray-600" dir="ltr">${user.phone_number || '---'}</td>
                                             <td class="p-3.5 font-mono text-gray-600" dir="ltr">${user.whatsapp_number || '---'}</td>
                                             <td class="p-3.5 font-mono text-gray-600" dir="ltr">${user.gmail || '---'}</td>
@@ -1747,19 +1807,91 @@
             }
         }
 
-        async function renderBrandsScreen() {
-            let brands = [];
-            const { data, error } = await supabaseClient.from('brands').select('*');
-            
-            if (!error && data) {
-                brands = data.map(item => item.brand_name || item.name || Object.values(item)[1]); 
-            } else if (error) {
-                showSystemAlert("فشل جلب الماركات", currentUserId || "غير معروف", "جدول brands", error.message);
+        async function renderPartsScreen() {
+            document.getElementById('appContainer').innerHTML = `
+                ${getHeaderTemplate()}
+                <div class="flex items-center justify-between mb-4 flex-shrink-0">
+                    <button onclick="renderMainDashboard()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        <span>رجوع</span>
+                    </button>
+                    <h2 class="text-sm sm:text-base font-bold text-gray-800">قائمة قطع الغيار</h2>
+                </div>
+                <div id="partsListContainer" class="flex-1 overflow-y-auto space-y-3 p-1">
+                    <div class="text-center text-gray-400 text-sm py-8">جاري جلب قطع الغيار...</div>
+                </div>
+            `;
+
+            loadDynamicMenuIntoSidebar();
+
+            let sparePartsList = [];
+            try {
+                const { data, error } = await supabaseClient.rpc('get_spare_parts');
+
+                if (error) {
+                    showSystemAlert("فشل جلب قطع الغيار", currentUserId || "غير معروف", "دالة get_spare_parts", error.message);
+                } else if (data) {
+                    sparePartsList = data;
+                }
+            } catch (err) {
+                showSystemAlert("استثناء في جلب قطع الغيار", currentUserId || "غير معروف", "تنفيذ RPC", err.message);
             }
 
-            let brandsHtml = "";
+            const container = document.getElementById('partsListContainer');
+            if (!container) return;
+
+            if (sparePartsList.length > 0) {
+                container.innerHTML = sparePartsList.map((part, index) => {
+                    const style = getRotatingCardStyle(index);
+                    return `
+                        <div onclick="renderBrandsScreen('${part}')" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
+                            <span class="font-bold text-gray-800 text-right flex-1 ml-3" dir="auto">${part}</span>
+                            <svg class="w-5 h-5 ${style.icon} flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                container.innerHTML = `<div class="text-center text-gray-500 py-6">لا توجد قطع غيار متاحة في الجدول حالياً</div>`;
+            }
+        }
+
+        async function renderBrandsScreen(partName = '') {
+            if (partName) selectedPart = partName;
+
+            document.getElementById('appContainer').innerHTML = `
+                ${getHeaderTemplate()}
+                <div class="flex items-center justify-between mb-4 flex-shrink-0">
+                    <button onclick="renderPartsScreen()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        <span>رجوع</span>
+                    </button>
+                    <h2 class="text-sm sm:text-base font-bold text-gray-800">اختر الماركة (${selectedPart || 'قطعة الغيار'})</h2>
+                </div>
+                <div id="brandsListContainer" class="flex-1 overflow-y-auto space-y-3 p-1">
+                    <div class="text-center text-gray-400 text-sm py-8">جاري جلب الماركات...</div>
+                </div>
+            `;
+
+            loadDynamicMenuIntoSidebar();
+
+            let brands = [];
+            try {
+                const { data, error } = await supabaseClient.rpc('get_brands');
+
+                if (error) {
+                    showSystemAlert("فشل جلب الماركات", currentUserId || "غير معروف", "دالة get_brands", error.message);
+                } else if (data) {
+                    brands = data;
+                }
+            } catch (err) {
+                showSystemAlert("استثناء في جلب الماركات", currentUserId || "غير معروف", "تنفيذ RPC", err.message);
+            }
+
+            const container = document.getElementById('brandsListContainer');
+            if (!container) return;
+
             if (brands.length > 0) {
-                brandsHtml = brands.map((brand, index) => {
+                container.innerHTML = brands.map((brand, index) => {
                     const style = getRotatingCardStyle(index);
                     return `
                         <div onclick="renderModelsScreen('${brand}')" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
@@ -1769,24 +1901,8 @@
                     `;
                 }).join('');
             } else {
-                brandsHtml = `<div class="text-center text-gray-500 py-6">لا توجد ماركات متاحة حالياً</div>`;
+                container.innerHTML = `<div class="text-center text-gray-500 py-6">لا توجد ماركات متاحة حالياً</div>`;
             }
-
-            const html = `
-                ${getHeaderTemplate()}
-                <div class="flex items-center justify-between mb-4 flex-shrink-0">
-                    <button onclick="renderMainDashboard()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5">
-                        <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                        <span>رجوع</span>
-                    </button>
-                    <h2 class="text-sm sm:text-base font-bold text-gray-800">اختر الماركة</h2>
-                </div>
-                <div class="flex-1 overflow-y-auto space-y-3 p-1">
-                    ${brandsHtml}
-                </div>
-            `;
-            document.getElementById('appContainer').innerHTML = html;
-            loadDynamicMenuIntoSidebar();
         }
 
         async function renderModelsScreen(brand) {
@@ -1847,7 +1963,7 @@
                     const escapedBattery = m.battery_model ? encodeURIComponent(m.battery_model) : '';
                     const escapedCode = m.model_code ? encodeURIComponent(m.model_code) : '';
                     return `
-                        <div onclick="renderPartsScreen('${m.device_name}', '${escapedCode}', '${escapedCompat}', '${escapedBattery}')" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
+                        <div onclick="renderPartDetails('${m.device_name}', '${escapedCode}', '${escapedCompat}', '${escapedBattery}')" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
                             <div class="text-right">
                                 <span class="font-bold text-gray-800 block" dir="auto">${m.device_name}</span>
                                 ${m.model_code ? `<span class="text-xs text-gray-500 block mt-0.5" dir="auto">الكود: ${m.model_code}</span>` : ''}
@@ -1863,7 +1979,7 @@
             const html = `
                 ${getHeaderTemplate()}
                 <div class="flex items-center justify-between mb-4 flex-shrink-0">
-                    <button onclick="renderBrandsScreen()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5">
+                    <button onclick="renderBrandsScreen()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
                         <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                         <span>رجوع</span>
                     </button>
@@ -1877,74 +1993,13 @@
             loadDynamicMenuIntoSidebar();
         }
 
-        async function renderPartsScreen(modelName = '', modelCode = '', screenCompat = '', batteryModel = '') {
+        async function renderPartDetails(modelName = '', modelCode = '', screenCompat = '', batteryModel = '') {
             selectedModel = modelName;
             selectedModelCode = modelCode ? decodeURIComponent(modelCode) : '';
             currentScreenCompatibility = screenCompat ? decodeURIComponent(screenCompat) : '';
             currentBatteryModel = batteryModel ? decodeURIComponent(batteryModel) : '';
 
-            document.getElementById('appContainer').innerHTML = `
-                ${getHeaderTemplate()}
-                <div class="flex items-center justify-between mb-4 flex-shrink-0">
-                    <button onclick="renderMainDashboard()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5">
-                        <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                        <span>رجوع</span>
-                    </button>
-                    <h2 class="text-sm sm:text-base font-bold text-gray-800">قائمة قطع الغيار</h2>
-                </div>
-                <div class="flex-1 flex items-center justify-center">
-                    <p class="text-gray-500 text-sm">جاري جلب قطع الغيار من قاعدة البيانات...</p>
-                </div>
-            `;
-
-            let sparePartsList = [];
-            try {
-                const { data, error } = await supabaseClient.rpc('get_spare_parts');
-
-                if (error) {
-                    showSystemAlert("فشل جلب قطع الغيار", currentUserId || "غير معروف", "دالة get_spare_parts", error.message);
-                } else if (data) {
-                    sparePartsList = data;
-                }
-            } catch (err) {
-                showSystemAlert("استثناء في جلب قطع الغيار", currentUserId || "غير معروف", "تنفيذ RPC", err.message);
-            }
-
-            let partsHtml = "";
-            if (sparePartsList.length > 0) {
-                partsHtml = sparePartsList.map((part, index) => {
-                    const style = getRotatingCardStyle(index);
-                    return `
-                        <div onclick="renderPartDetails('${part}')" class="w-full ${style.bg} border ${style.border} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer transition-all text-sm sm:text-base group">
-                            <span class="font-bold text-gray-800 text-right flex-1 ml-3" dir="auto">${part}</span>
-                            <svg class="w-5 h-5 ${style.icon} flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                        </div>
-                    `;
-                }).join('');
-            } else {
-                partsHtml = `<div class="text-center text-gray-500 py-6">لا توجد قطع غيار متاحة في الجدول حالياً</div>`;
-            }
-
-            const html = `
-                ${getHeaderTemplate()}
-                <div class="flex items-center justify-between mb-4 flex-shrink-0">
-                    <button onclick="renderMainDashboard()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5">
-                        <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                        <span>رجوع</span>
-                    </button>
-                    <h2 class="text-sm sm:text-base font-bold text-gray-800">قائمة قطع الغيار</h2>
-                </div>
-                <div class="flex-1 overflow-y-auto space-y-3 p-1">
-                    ${partsHtml}
-                </div>
-            `;
-            document.getElementById('appContainer').innerHTML = html;
-            loadDynamicMenuIntoSidebar();
-        }
-
-        async function renderPartDetails(part) {
-            selectedPart = part;
-            alert(`تفاصيل القطعة: ${part}`);
+            alert(`بيانات شراء المنتج:\n- القطعة: ${selectedPart}\n- الماركة: ${selectedBrand}\n- الموديل: ${selectedModel}\n- الكود: ${selectedModelCode}`);
         }
 
         window.onload = function() {
