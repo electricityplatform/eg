@@ -8,10 +8,68 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- تضمين مكتبة Supabase للاتصال بقاعدة البيانات -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- تضمين مكتبة SheetJS للتصدير المباشر والحقيقي إلى ملفات XLSX -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
         body {
             font-family: 'Cairo', sans-serif;
+        }
+
+        /* تنسيق الجدول ليصبح شبكياً متصلاً تماماً مثل Excel */
+        #editableUsersTable {
+            border-collapse: collapse;
+            width: 100%;
+            background-color: #ffffff;
+        }
+        #editableUsersTable th, #editableUsersTable td {
+            border: 1px solid #cbd5e1;
+            padding: 0 !important;
+            margin: 0;
+            position: relative;
+        }
+        #editableUsersTable th {
+            background-color: #f1f5f9;
+            color: #334155;
+            font-weight: 700;
+            padding: 8px 12px !important;
+            text-align: center;
+            white-space: nowrap;
+        }
+        
+        /* تصميم حقل الإدخال ليمسح مساحة الخلية بالكامل وبدون حواف دائرية */
+        .excel-input {
+            width: 100%;
+            height: 100%;
+            border: none !important;
+            outline: none !important;
+            background: transparent !important;
+            padding: 8px 10px !important;
+            font-size: 13px;
+            color: #1e293b;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+        .excel-input:focus {
+            background-color: #eff6ff !important;
+            box-shadow: inset 0 0 0 2px #2563eb !important;
+            z-index: 20;
+        }
+
+        /* تصميم مقبض السحب (Drag Handle) للإكسل في الزاوية السفلى اليسرى */
+        .drag-handle {
+            position: absolute;
+            bottom: 1px;
+            left: 1px;
+            width: 7px;
+            height: 7px;
+            background-color: #2563eb;
+            cursor: crosshair;
+            display: none;
+            z-index: 30;
+        }
+        td:hover .drag-handle {
+            display: block;
         }
     </style>
 </head>
@@ -225,7 +283,6 @@
                         const style = getRotatingCardStyle(index);
                         let clickAction = `alert('تم النقر على قسم: ${item}')`;
                         
-                        // ربط زر جدول المستخدمين بالشيت التفاعلي
                         if (item.includes('جدول المستخدمين') || item.includes('بيانات المستخدمين')) {
                             clickAction = "renderUsersDataCenterSheet()";
                         }
@@ -247,7 +304,7 @@
             }
         }
 
-        // ================= شيت جدول المستخدمين التفاعلي (مركز البيانات) =================
+        // ================= شيت جدول المستخدمين التفاعلي (النمط الشبكي لإكسل) =================
         async function renderUsersDataCenterSheet() {
             closeSidebar();
 
@@ -255,7 +312,7 @@
             container.innerHTML = `
                 ${getHeaderTemplate()}
                 <div class="flex items-center justify-between mb-3 flex-shrink-0 flex-wrap gap-2">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <button type="button" onclick="renderDataCenterScreen()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
                             <svg class="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                             <span>رجوع لمركز البيانات</span>
@@ -264,12 +321,16 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
                             <span>حفظ التعديلات لقاعدة البيانات</span>
                         </button>
+                        <button type="button" onclick="exportUsersSheetToExcel()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            <span>تصدير إلى إكسل</span>
+                        </button>
                     </div>
-                    <h2 class="text-sm sm:text-base font-bold text-gray-800">شيت جدول المستخدمين (مركز البيانات)</h2>
+                    <h2 class="text-sm sm:text-base font-bold text-gray-800">شيت جدول المستخدمين (النمط الشبكي لإكسل)</h2>
                 </div>
 
                 <!-- حاوية الجدول القابلة للتعديل -->
-                <div id="usersSheetContainer" class="flex-1 overflow-y-auto p-1">
+                <div id="usersSheetContainer" class="flex-1 overflow-y-auto p-1 border border-slate-300 rounded-xl bg-white shadow-inner">
                     <div class="text-center text-gray-400 text-sm py-8">جاري جلب بيانات المستخدمين كشيت...</div>
                 </div>
             `;
@@ -304,34 +365,37 @@
                     const columns = Object.keys(sampleObj);
 
                     sheetContainer.innerHTML = `
-                        <div class="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm bg-white">
-                            <table class="w-full text-right text-xs sm:text-sm border-collapse" id="editableUsersTable">
-                                <thead class="bg-gray-50 text-gray-700 border-b border-gray-200">
-                                    <tr>
-                                        ${columns.map(col => `<th class="p-3.5 font-bold whitespace-nowrap min-w-[160px]">${col}</th>`).join('')}
+                        <table id="editableUsersTable">
+                            <thead>
+                                <tr>
+                                    ${columns.map(col => `<th>${col}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${usersList.map((user, idx) => `
+                                    <tr data-id="${user.id}">
+                                        ${columns.map(col => {
+                                            const val = user[col] !== null && user[col] !== undefined ? user[col] : '';
+                                            const isId = (col === 'id' || col === 'created_at' || col === 'last_active_at');
+                                            if (isId) {
+                                                return `<td class="p-2 font-mono text-slate-500 text-xs whitespace-nowrap min-w-[150px]" dir="ltr">${val}</td>`;
+                                            }
+                                            return `
+                                                <td class="min-w-[160px] h-[38px] relative">
+                                                    <input type="text" data-field="${col}" value="${val}" class="excel-input" dir="auto">
+                                                    <div class="drag-handle" title="اسحب للتعبئة التلقائية"></div>
+                                                </td>
+                                            `;
+                                        }).join('')}
                                     </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-100">
-                                    ${usersList.map((user, idx) => `
-                                        <tr class="hover:bg-blue-50/40 transition-all" data-id="${user.id}">
-                                            ${columns.map(col => {
-                                                const val = user[col] !== null && user[col] !== undefined ? user[col] : '';
-                                                const isId = (col === 'id' || col === 'created_at' || col === 'last_active_at');
-                                                if (isId) {
-                                                    return `<td class="p-3.5 font-mono text-gray-500 text-xs whitespace-nowrap min-w-[160px]" dir="ltr">${val}</td>`;
-                                                }
-                                                return `
-                                                    <td class="p-2 min-w-[160px]">
-                                                        <input type="text" data-field="${col}" value="${val}" class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs sm:text-sm w-full focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all" dir="auto">
-                                                    </td>
-                                                `;
-                                            }).join('')}
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                                `).join('')}
+                            </tbody>
+                        </table>
                     `;
+
+                    // تفعيل ميزات الإكسل المتقدمة (اللصق المتعدد والسحب الشبكي)
+                    enableExcelPasteAndDragFill();
+
                 } else {
                     sheetContainer.innerHTML = `<div class="text-center text-gray-500 py-12">لا توجد بيانات مستخدمين متاحة</div>`;
                 }
@@ -339,6 +403,136 @@
                 console.error(err);
                 sheetContainer.innerHTML = `<div class="text-center text-red-400 text-sm py-8">حدث خطأ غير متوقع</div>`;
             }
+        }
+
+        // ================= دالة تصدير الشيت الحالي بصيغة XLSX حقيقية برمجياً =================
+        function exportUsersSheetToExcel() {
+            const table = document.getElementById('editableUsersTable');
+            if (!table) {
+                alert("لا توجد بيانات للتصدير حالياً");
+                return;
+            }
+
+            // 1. استخراج عناوين الأعمدة (Headers)
+            const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim());
+
+            // 2. استخراج بيانات الصفوف من مدخلات الـ Inputs الحالية
+            const rowsData = [];
+            const rows = table.querySelectorAll('tbody tr');
+
+            rows.forEach(row => {
+                const rowData = [];
+                const cells = row.querySelectorAll('td');
+
+                cells.forEach(td => {
+                    const input = td.querySelector('input.excel-input');
+                    // قراءة القيمة الحقيقية من الـ input لو موجودة، أو من النص المباشر للخلية
+                    const val = input ? input.value : td.innerText.trim();
+                    rowData.push(val);
+                });
+
+                rowsData.push(rowData);
+            });
+
+            // 3. تجميع المكونات في مصفوفة واحدة
+            const excelData = [headers, ...rowsData];
+
+            // 4. إنشاء شيت وملف Excel باستخدام مكتبة XLSX
+            const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "جدول المستخدمين");
+
+            // 5. تحميل الملف مباشرة بصيغة .xlsx المعتمدة
+            const fileName = `Users_Sheet_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+        }
+
+        // ================= تفعيل ميزات الإكسل (اللصق المتعدد والسحب الشبكي) =================
+        function enableExcelPasteAndDragFill() {
+            const table = document.getElementById('editableUsersTable');
+            if (!table) return;
+
+            const inputs = table.querySelectorAll('input.excel-input');
+
+            // 1. اللصق الجماعي (Multi-cell Paste) بدقة شبكية
+            inputs.forEach(input => {
+                input.addEventListener('paste', function(e) {
+                    e.preventDefault();
+                    const clipboardData = e.clipboardData || window.clipboardData;
+                    const pastedData = clipboardData.getData('Text');
+                    if (!pastedData) return;
+                    
+                    const rowsData = pastedData.split(/\r\n|\n|\r/).filter(row => row !== '');
+                    if (rowsData.length === 0) return;
+
+                    const currentRow = this.closest('tr');
+                    const currentCell = this.closest('td');
+                    const allRows = Array.from(table.querySelectorAll('tbody tr'));
+                    const startRowIndex = allRows.indexOf(currentRow);
+                    const allCellsInRow = Array.from(currentRow.querySelectorAll('td'));
+                    const startCellIndex = allCellsInRow.indexOf(currentCell);
+
+                    rowsData.forEach((rowText, rIdx) => {
+                        const targetRow = allRows[startRowIndex + rIdx];
+                        if (!targetRow) return;
+
+                        const colsData = rowText.split('\t');
+                        colsData.forEach((cellText, cIdx) => {
+                            const targetCells = Array.from(targetRow.querySelectorAll('td'));
+                            const targetCell = targetCells[startCellIndex + cIdx];
+                            if (!targetCell) return;
+
+                            const targetInput = targetCell.querySelector('input.excel-input');
+                            if (targetInput) {
+                                targetInput.value = cellText.trim();
+                            }
+                        });
+                    });
+                });
+            });
+
+            // 2. السحب للتعبئة (Drag Fill Handle) باستخدام مصفوفة الإحداثيات
+            const handles = table.querySelectorAll('.drag-handle');
+            handles.forEach(handle => {
+                handle.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    const sourceCell = this.closest('td');
+                    const sourceInput = sourceCell.querySelector('input.excel-input');
+                    const sourceRow = sourceCell.closest('tr');
+                    const allRows = Array.from(table.querySelectorAll('tbody tr'));
+                    const sourceRowIndex = allRows.indexOf(sourceRow);
+                    const sourceCellIndex = Array.from(sourceRow.querySelectorAll('td')).indexOf(sourceCell);
+                    const sourceVal = sourceInput ? sourceInput.value : sourceCell.innerText;
+
+                    function onMouseMove(moveEvent) {
+                        const elemBelow = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+                        const targetCellBelow = elemBelow?.closest('td');
+                        if (targetCellBelow) {
+                            const targetRow = targetCellBelow.closest('tr');
+                            const targetRowIndex = allRows.indexOf(targetRow);
+                            const targetCellIndex = Array.from(targetRow.querySelectorAll('td')).indexOf(targetCellBelow);
+
+                            if (targetCellIndex === sourceCellIndex && targetRowIndex >= sourceRowIndex) {
+                                for (let i = sourceRowIndex; i <= targetRowIndex; i++) {
+                                    const rowCells = Array.from(allRows[i].querySelectorAll('td'));
+                                    const inputToFill = rowCells[sourceCellIndex]?.querySelector('input.excel-input');
+                                    if (inputToFill) {
+                                        inputToFill.value = sourceVal;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    function onMouseUp() {
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    }
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            });
         }
 
         async function saveUsersDataCenterSheetToDB() {
@@ -1785,7 +1979,7 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
                         </button>
                         <button onclick="alert('جارِ فتح الكاميرا للمسح الضوئي...')" class="bg-gray-50 hover:bg-gray-100 border border-gray-200 p-3 rounded-xl text-gray-600 transition-all shadow-sm" title="بحث بالكاميرا">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                         </button>
                     </div>
                 </div>
@@ -1879,7 +2073,7 @@
                                         <input type="password" id="loginPassword" required class="w-full px-4 py-3 pl-12 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-gray-50" dir="ltr">
                                         <button type="button" onclick="togglePasswordVisibility('loginPassword', 'loginEyeIcon')" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 focus:outline-none p-1">
                                             <svg id="loginEyeIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268-2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
                                             </svg>
                                         </button>
                                     </div>
