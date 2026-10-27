@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+
+body {
+    font-family: 'Cairo', sans-serif;
+}
+
+/* تنسيق الجدول ليصبح شبكياً متصلاً تماماً مثل Excel */
+#editableUsersTable {
+    border-collapse: collapse;
+    /* العرض على قد المحتوى، ويتمدد لعرض الشاشة لو المحتوى أقل منها */
+    width: max-content;
+    min-width: 100%;
+    background-color: #ffffff;
+}
+#editableUsersTable th, #editableUsersTable td {
+    border: 1px solid #cbd5e1;
+    padding: 0 !important;
+    margin: 0;
+    position: relative;
+}
+#editableUsersTable th {
+    background-color: #f1f5f9;
+    color: #334155;
+    font-weight: 700;
+    padding: 8px 12px !important;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* خلية الشيت: تتمدد طولاً وعرضاً حسب النص اللي جواها.
+   السر: نسخة شبحية من النص (::after من data-value) بتحدد حجم الخلية،
+   والـ textarea فوقها بنفس المساحة بالظبط. */
+.sheet-cell {
+    display: grid;
+    width: 100%;
+    min-width: 64px;
+}
+.sheet-cell::after,
+.sheet-cell > .excel-input {
+    grid-area: 1 / 1 / 2 / 2;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 8px 10px !important;
+    white-space: pre;
+}
+.sheet-cell::after {
+    content: attr(data-value) " ";
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* حقل الإدخال يملأ الخلية بالكامل */
+.excel-input {
+    width: 100%;
+    height: 100%;
+    display: block;
+    resize: none;
+    overflow: hidden;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+    padding: 8px 10px !important;
+    font-size: 13px;
+    color: #1e293b;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+.excel-input:focus {
+    background-color: #eff6ff !important;
+    box-shadow: inset 0 0 0 2px #2563eb !important;
+    z-index: 20;
+}
+
+/* مقبض السحب (Drag Handle) */
+.drag-handle {
+    position: absolute;
+    bottom: 1px;
+    left: 1px;
+    width: 7px;
+    height: 7px;
+    background-color: #2563eb;
+    cursor: crosshair;
+    display: none;
+    z-index: 30;
+}
+td:hover .drag-handle {
+    display: block;
+}
+
+
+/* ================= المظهر الداكن ================= */
+html.dark { color-scheme: dark; }
+
+html.dark body {
+    background-image: linear-gradient(to bottom right, #0b1220, #1e1b4b) !important;
+}
+
+/* الخلفيات */
+html.dark .bg-white { background-color: #111827 !important; }
+html.dark .bg-gray-50 { background-color: #1f2937 !important; }
+html.dark .bg-gray-100 { background-color: #374151 !important; }
+html.dark .bg-gray-200 { background-color: #4b5563 !important; }
+html.dark .bg-blue-50 { background-color: rgba(37, 99, 235, 0.15) !important; }
+html.dark .bg-blue-50\/80 { background-color: rgba(37, 99, 235, 0.18) !important; }
+html.dark .bg-blue-100 { background-color: rgba(37, 99, 235, 0.25) !important; }
+html.dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.12) !important; }
+html.dark .bg-red-100 { background-color: rgba(239, 68, 68, 0.2) !important; }
+
+/* hover */
+html.dark .hover\:bg-gray-100:hover { background-color: #374151 !important; }
+html.dark .hover\:bg-gray-200:hover { background-color: #4b5563 !important; }
+html.dark .hover\:bg-gray-300:hover { background-color: #6b7280 !important; }
+html.dark .hover\:bg-blue-50:hover { background-color: rgba(37, 99, 235, 0.2) !important; }
+html.dark .hover\:bg-blue-50\/50:hover { background-color: rgba(37, 99, 235, 0.2) !important; }
+html.dark .hover\:bg-blue-50\/60:hover { background-color: rgba(37, 99, 235, 0.2) !important; }
+html.dark .hover\:bg-blue-100:hover { background-color: rgba(37, 99, 235, 0.3) !important; }
+html.dark .hover\:bg-red-100:hover { background-color: rgba(239, 68, 68, 0.28) !important; }
+
+/* النصوص */
+html.dark .text-gray-800 { color: #f3f4f6 !important; }
+html.dark .text-gray-700 { color: #e5e7eb !important; }
+html.dark .text-gray-600 { color: #d1d5db !important; }
+html.dark .text-gray-500 { color: #9ca3af !important; }
+html.dark .text-gray-400 { color: #9ca3af !important; }
+html.dark .text-gray-300 { color: #6b7280 !important; }
+html.dark .text-slate-500, html.dark .text-slate-400 { color: #9ca3af !important; }
+html.dark .text-blue-600 { color: #60a5fa !important; }
+html.dark .text-blue-700 { color: #93c5fd !important; }
+html.dark .hover\:text-blue-600:hover { color: #60a5fa !important; }
+html.dark .hover\:text-gray-700:hover { color: #e5e7eb !important; }
+html.dark .text-red-600 { color: #f87171 !important; }
+
+/* الحدود */
+html.dark .border-gray-100,
+html.dark .border-gray-200 { border-color: #374151 !important; }
+html.dark .border-gray-300,
+html.dark .border-slate-300 { border-color: #4b5563 !important; }
+html.dark .border-blue-200 { border-color: #1e40af !important; }
+html.dark .hover\:border-blue-200:hover { border-color: #1e40af !important; }
+html.dark .border-red-200 { border-color: #7f1d1d !important; }
+html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #374151 !important; }
+
+/* الحقول */
+html.dark input,
+html.dark select,
+html.dark textarea {
+    background-color: #1f2937;
+    color: #f3f4f6;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder { color: #6b7280; }
+
+/* جدول الإكسل */
+html.dark #editableUsersTable { background-color: #111827; }
+html.dark #editableUsersTable th, html.dark #editableUsersTable td { border-color: #374151; }
+html.dark #editableUsersTable th { background-color: #1f2937; color: #e5e7eb; }
+html.dark .excel-input { color: #f3f4f6; }
+html.dark .excel-input:focus { background-color: #1e3a5f !important; }
