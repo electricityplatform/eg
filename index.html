@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>iPhone 3D - فك وتركيب قطع الغيار</title>
+<title>iPhone 18 Pro 3D - فك وتركيب قطع الغيار</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg1:#0b1020; --bg2:#1b2340; --card:rgba(18,24,48,.78); --line:rgba(255,255,255,.12);
-    --accent:#4f8cff; --text:#eef2ff; --muted:#9aa6c7;
+    --bg1:#090d1a; --bg2:#1a2140; --card:rgba(18,24,48,.78); --line:rgba(255,255,255,.12);
+    --accent:#c2415c; --text:#eef2ff; --muted:#9aa6c7;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;overflow:hidden;font-family:'Cairo',system-ui,Tahoma,sans-serif;color:var(--text);
@@ -64,8 +64,8 @@
 <div id="labels"></div>
 
 <header>
-  <h1>iPhone — فك وتركيب قطع الغيار 3D</h1>
-  <p>اسحب للتدوير • اقرص أو استخدم العجلة للتكبير • اضغط على أي قطعة لمعرفة تفاصيلها</p>
+  <h1>iPhone 18 Pro — فك وتركيب قطع الغيار 3D</h1>
+  <p>اسحب يمين وشمال للتدوير • اقرص أو استخدم العجلة للتكبير • اضغط على أي قطعة لمعرفة تفاصيلها</p>
 </header>
 
 <aside id="list" class="glass"><h3>قطع الغيار (13)</h3></aside>
@@ -99,23 +99,29 @@ const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.1;
 
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 200);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
+controls.enablePan = false;
 controls.minDistance = 12;
 controls.maxDistance = 70;
-controls.autoRotateSpeed = 1.6;
+controls.autoRotateSpeed = 2.0;
+// قفل الدوران: يمين وشمال فقط (حول المحور الرأسي)، من غير ميل لفوق أو تحت
+const POLAR = 1.38;
+controls.minPolarAngle = POLAR;
+controls.maxPolarAngle = POLAR;
 
-const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(10, 14, 16); scene.add(key);
-const rim = new THREE.DirectionalLight(0x88aaff, 1.0); rim.position.set(-12, 4, -14); scene.add(rim);
-scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+const key = new THREE.DirectionalLight(0xffffff, 1.7); key.position.set(10, 14, 16); scene.add(key);
+const rim = new THREE.DirectionalLight(0xffb4c4, 1.0); rim.position.set(-12, 4, -14); scene.add(rim);
+const fill = new THREE.DirectionalLight(0xaac4ff, 0.6); fill.position.set(-14, 2, 12); scene.add(fill);
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
 // ظل أرضية ناعم
 {
@@ -131,12 +137,20 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.35));
 const phone = new THREE.Group();
 scene.add(phone);
 
+// محور الفك (خط رفيع)
+{
+  const pts = [new THREE.Vector3(0,0,-9), new THREE.Vector3(0,0,9)];
+  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:0.12 }));
+  scene.add(l);
+}
+
 /* ============ أدوات مساعدة ============ */
 const M = (color, metalness=0.2, roughness=0.5, extra={}) =>
   new THREE.MeshStandardMaterial({ color, metalness, roughness, ...extra });
 
-function rrPath(p, w, h, r){
-  const x=-w/2, y=-h/2;
+function rrPath(p, w, h, r, ox=0, oy=0){
+  const x=-w/2+ox, y=-h/2+oy;
   p.moveTo(x+r,y); p.lineTo(x+w-r,y); p.quadraticCurveTo(x+w,y,x+w,y+r);
   p.lineTo(x+w,y+h-r); p.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
   p.lineTo(x+r,y+h); p.quadraticCurveTo(x,y+h,x,y+h-r);
@@ -144,14 +158,15 @@ function rrPath(p, w, h, r){
   return p;
 }
 function ext(shape, depth, mat, bevel=0.03){
-  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled:true, bevelSize:bevel, bevelThickness:bevel, bevelSegments:2, curveSegments:14 });
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled:true, bevelSize:bevel, bevelThickness:bevel, bevelSegments:3, curveSegments:18 });
   g.translate(0,0,-depth/2);
   return new THREE.Mesh(g, mat);
 }
 const box = (w,h,d,mat,x=0,y=0,z=0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); m.position.set(x,y,z); return m; };
-const cyl = (r,h,mat,x=0,y=0,z=0) => { const g = new THREE.CylinderGeometry(r,r,h,32); g.rotateX(Math.PI/2); const m = new THREE.Mesh(g, mat); m.position.set(x,y,z); return m; };
+const cyl = (r,h,mat,x=0,y=0,z=0) => { const g = new THREE.CylinderGeometry(r,r,h,40); g.rotateX(Math.PI/2); const m = new THREE.Mesh(g, mat); m.position.set(x,y,z); return m; };
+const torus = (r,t,mat,x=0,y=0,z=0) => { const m = new THREE.Mesh(new THREE.TorusGeometry(r,t,16,64), mat); m.position.set(x,y,z); return m; };
 function uvShape(shape, w, h){
-  const g = new THREE.ShapeGeometry(shape, 16);
+  const g = new THREE.ShapeGeometry(shape, 18);
   const p = g.attributes.position, uv = g.attributes.uv;
   for(let i=0;i<p.count;i++) uv.setXY(i, p.getX(i)/w+0.5, p.getY(i)/h+0.5);
   return g;
@@ -161,12 +176,14 @@ function canvasTex(w,h,draw){
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
 }
 
-/* ============ الخامات ============ */
-const frameMetal = () => M(0x8d9bb8, 1.0, 0.32);
-const backGlass  = () => M(0x2c3b5c, 0.3, 0.18);
+/* ============ الخامات (لون Cherry الموحد: الألومنيوم والزجاج) ============ */
+const CHERRY = 0x6b1a2c;
+const alum       = () => M(CHERRY, 0.92, 0.36);
+const backGlass  = () => M(0x74202f, 0.35, 0.2);
 const flexMat    = () => M(0xe3a23b, 0.15, 0.6, { side:THREE.DoubleSide });
 const darkPlastic= () => M(0x15171c, 0.1, 0.55);
 const steel      = () => M(0xcfd3da, 0.95, 0.28);
+const gold       = () => M(0xd9b24a, 0.9, 0.3);
 const black      = () => new THREE.MeshBasicMaterial({ color:0x000000 });
 
 /* ============ بناء القطع ============ */
@@ -174,22 +191,41 @@ const W=7.2, H=15;
 
 function buildScreen(){
   const g = new THREE.Group();
-  g.add(ext(rrPath(new THREE.Shape(),6.7,14.4,0.95), 0.08, M(0x07080b,0.6,0.15)));
-  const tex = canvasTex(520,1136,(c,w,h)=>{
+  // زجاج Ceramic Shield + طبقة OLED
+  g.add(ext(rrPath(new THREE.Shape(),6.74,14.44,0.95), 0.08, M(0x050507,0.7,0.12), 0.035));
+  const tex = canvasTex(560,1220,(c,w,h)=>{
     const gr = c.createLinearGradient(0,0,w,h);
-    gr.addColorStop(0,'#1d4ed8'); gr.addColorStop(.5,'#7c3aed'); gr.addColorStop(1,'#f97316');
+    gr.addColorStop(0,'#3b0a1e'); gr.addColorStop(.45,'#9d174d'); gr.addColorStop(1,'#f97316');
     c.fillStyle=gr; c.fillRect(0,0,w,h);
     const blob=(x,y,r,col)=>{const rg=c.createRadialGradient(x,y,0,x,y,r);rg.addColorStop(0,col);rg.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=rg;c.fillRect(0,0,w,h)};
-    blob(120,260,380,'rgba(56,189,248,.55)'); blob(420,820,420,'rgba(244,114,182,.5)'); blob(300,560,300,'rgba(255,255,255,.18)');
-    c.fillStyle='#fff'; c.textAlign='center';
-    c.font='700 150px Cairo, Arial'; c.fillText('9:41', w/2, 420);
-    c.font='600 34px Cairo, Arial'; c.fillText('الثلاثاء', w/2, 300);
-    c.fillStyle='rgba(255,255,255,.9)'; c.fillRect(w/2-90,h-36,180,8);
+    blob(120,300,420,'rgba(244,114,182,.55)'); blob(450,900,460,'rgba(251,191,36,.45)'); blob(300,640,320,'rgba(255,255,255,.14)');
+    // شريط الحالة
+    c.fillStyle='#fff'; c.textAlign='left'; c.font='700 30px Arial'; c.fillText('9:41', 56, 62);
+    c.textAlign='right';
+    // إشارة
+    for(let i=0;i<4;i++){ c.fillRect(w-250+i*13, 62-(i+1)*7, 8, (i+1)*7); }
+    // بطارية
+    c.strokeStyle='#fff'; c.lineWidth=3; c.strokeRect(w-80,38,44,22); c.fillRect(w-76,42,32,14); c.fillRect(w-33,45,4,8);
+    // التاريخ والساعة
+    c.textAlign='center'; c.font='600 36px Cairo, Arial'; c.fillText('الثلاثاء 3 نوفمبر', w/2, 250);
+    c.font='700 190px Arial'; c.fillText('9:41', w/2, 430);
+    // أزرار سفلية
+    c.fillStyle='rgba(0,0,0,.35)';
+    c.beginPath(); c.arc(90,h-110,44,0,7); c.fill();
+    c.beginPath(); c.arc(w-90,h-110,44,0,7); c.fill();
+    c.fillStyle='#fff'; c.fillRect(82,h-126,16,24); c.fillRect(w-106,h-122,32,22);
+    c.fillStyle='rgba(255,255,255,.9)'; c.fillRect(w/2-100,h-26,200,8);
   });
-  const face = new THREE.Mesh(uvShape(rrPath(new THREE.Shape(),6.5,14.2,0.85),6.5,14.2), new THREE.MeshBasicMaterial({ map:tex }));
-  face.position.z = 0.075; g.add(face);
-  const isl = new THREE.Mesh(new THREE.ShapeGeometry(rrPath(new THREE.Shape(),1.8,0.5,0.25),12), black());
-  isl.position.set(0,6.35,0.08); g.add(isl);
+  const face = new THREE.Mesh(uvShape(rrPath(new THREE.Shape(),6.56,14.26,0.85),6.56,14.26),
+    new THREE.MeshStandardMaterial({ color:0x0a0a0c, map:tex, emissive:0xffffff, emissiveMap:tex, emissiveIntensity:0.95, roughness:0.12, metalness:0.0 }));
+  face.material.userData.noGlow = true;
+  face.position.z = 0.078; g.add(face);
+  // Dynamic Island أصغر (~13.5mm)
+  const isl = new THREE.Mesh(new THREE.ShapeGeometry(rrPath(new THREE.Shape(),1.35,0.42,0.21),16), black());
+  isl.position.set(0,6.4,0.082); g.add(isl);
+  // الكاميرا الأمامية
+  g.add(cyl(0.075,0.01,M(0x0a1030,1,0.05),0.42,6.4,0.084));
+  g.add(cyl(0.11,0.008,M(0x1a1d2a,0.8,0.2),0.42,6.4,0.083));
   return g;
 }
 function buildScreenFlex(){
@@ -211,13 +247,24 @@ function buildFrame(){
   const g = new THREE.Group();
   const s = rrPath(new THREE.Shape(), W, H, 1.0);
   s.holes.push(rrPath(new THREE.Path(), 6.8, 14.6, 0.8));
-  g.add(ext(s, 0.8, frameMetal(), 0.04));
-  const bm = M(0x9aa7c2,1,0.35);
-  g.add(box(0.14,0.9,0.14,bm,-3.62,5.4,0));
-  g.add(box(0.14,1.3,0.14,bm,-3.62,3.4,0));
-  g.add(box(0.14,1.3,0.14,bm,-3.62,1.8,0));
-  g.add(box(0.14,1.8,0.14,bm,3.62,2.6,0));
-  g.add(box(0.14,1.2,0.14,M(0x20232b,0.6,0.3),3.62,-2.6,0));
+  g.add(ext(s, 0.8, alum(), 0.06));
+  const bm = M(0x7c2236,0.95,0.3);
+  // أزرار الجنب
+  g.add(box(0.14,0.9,0.16,bm,-3.64,5.5,0));    // Action
+  g.add(box(0.14,1.3,0.16,bm,-3.64,3.5,0));    // صوت +
+  g.add(box(0.14,1.3,0.16,bm,-3.64,1.9,0));    // صوت -
+  g.add(box(0.14,1.9,0.16,bm,3.64,2.6,0));     // Power
+  g.add(box(0.14,1.3,0.12,M(0x1a1c24,0.9,0.12),3.64,-2.6,0)); // Camera Control
+  // منفذ USB-C + فتحات السماعات والميكروفون
+  g.add(box(1.1,0.1,0.34,M(0x000000),0,-7.56,0));
+  for(let i=0;i<6;i++){
+    [-1,1].forEach(sd=>{
+      const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.08,16), M(0x000000));
+      hole.position.set(sd*(1.2+i*0.26),-7.56,0); g.add(hole);
+    });
+  }
+  // فتحة الميكروفون العلوية
+  g.add(cyl(0.05,0.04,M(0x000000),0.9,7.56,0).rotateX(Math.PI/2));
   return g;
 }
 function buildMiddle(){
@@ -230,10 +277,9 @@ function buildMiddle(){
   hole.lineTo(hx+hr,hy+hh); hole.quadraticCurveTo(hx,hy+hh,hx,hy+hh-hr);
   hole.lineTo(hx,hy+hr); hole.quadraticCurveTo(hx,hy,hx+hr,hy);
   s.holes.push(hole);
-  const mesh = ext(s, 0.08, M(0x666b75,0.9,0.4), 0.02);
-  g.add(mesh);
-  // العلبة المعدنية العلوية للكاميرا (منطقة اللوجيك)
+  g.add(ext(s, 0.08, M(0x666b75,0.9,0.4), 0.02));
   g.add(box(2.6,1.0,0.05,M(0x8a8f99,0.9,0.35),1.6,5.4,0.06));
+  g.add(box(3.4,0.9,0.04,M(0x7a808b,0.9,0.4),0,-6.2,0.06));
   const sc = M(0xc7ccd4,1,0.25);
   [[-2.8,6.4],[2.8,6.4],[-2.8,-6.4],[2.8,-6.4],[-3.0,0.5],[3.0,0.5]].forEach(([x,y])=> g.add(cyl(0.11,0.05,sc,x,y,0.06)));
   return g;
@@ -242,13 +288,13 @@ function buildSocket(){
   const g = new THREE.Group();
   g.add(box(0.42,1.7,0.5,steel()));
   g.add(box(0.44,1.25,0.18,darkPlastic(),0,0,0));
-  g.add(box(0.1,0.35,0.52,M(0xd9b24a,0.9,0.3),-0.1,0.6,0));
+  g.add(box(0.1,0.35,0.52,gold(),-0.1,0.6,0));
   return g;
 }
 function buildPowerFlex(){
   const g = new THREE.Group();
   g.add(box(0.7,3.2,0.03,flexMat()));
-  g.add(box(0.55,0.55,0.1,M(0xd9b24a,0.9,0.3),0.08,1.2,0.04));
+  g.add(box(0.55,0.55,0.1,gold(),0.08,1.2,0.04));
   g.add(box(0.5,0.4,0.1,darkPlastic(),-0.05,-1.6,0.04));
   return g;
 }
@@ -261,7 +307,7 @@ function buildBattery(){
     c.font='700 42px Arial'; c.fillText('Li-Ion',w/2,110);
     c.font='600 22px Arial'; c.fillText('BATTERY',w/2,150);
     c.fillStyle='#16a34a'; c.fillRect(w/2-50,200,100,46);
-    c.fillStyle='#16a34a'; c.fillRect(w/2+50,214,10,18);
+    c.fillRect(w/2+50,214,10,18);
     c.fillStyle='#fff'; c.font='700 24px Arial'; c.fillText('+ −',w/2,234);
     for(let i=0;i<14;i++){c.fillStyle='#111';c.fillRect(30+i*14,300,8,i%3?50:36)}
   });
@@ -285,7 +331,7 @@ function buildLoudspeaker(){
   g.add(box(1.7,1.3,0.45,M(0xaeb4be,0.85,0.35)));
   g.add(box(1.4,1.0,0.02,M(0x0b0c10,0.2,0.8),0,0,0.23));
   for(let i=-2;i<=2;i++) g.add(box(0.05,0.8,0.01,steel(),i*0.25,0,0.25));
-  g.add(box(0.4,0.2,0.1,M(0xd9b24a,0.9,0.3),0.6,-0.7,0));
+  g.add(box(0.4,0.2,0.1,gold(),0.6,-0.7,0));
   return g;
 }
 function buildRinger(){
@@ -306,35 +352,50 @@ function buildChargeFlex(){
   g.add(box(0.9,0.4,0.1,M(0x2a2d35,0.2,0.6),1.5,0.3,0.05));
   return g;
 }
+function lens(g, x, y, z, r){
+  const ring = M(0xb8bcc6,1,0.22), glass = M(0x04060a,0.95,0.05);
+  g.add(cyl(r+0.1,0.07,M(CHERRY,0.9,0.3),x,y,z+0.01));
+  g.add(torus(r+0.02,0.055,ring,x,y,z-0.05));
+  g.add(cyl(r,0.12,glass,x,y,z-0.03));
+  g.add(torus(r*0.62,0.014,M(0x4a5a96,1,0.1),x,y,z-0.1));
+  g.add(torus(r*0.34,0.012,M(0x7a4ab0,1,0.1),x,y,z-0.1));
+  g.add(cyl(r*0.22,0.02,M(0x1b2660,1,0.04),x,y,z-0.105));
+  const hl = new THREE.Mesh(new THREE.CircleGeometry(r*0.12,16), new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.55 }));
+  hl.position.set(x-r*0.3,y+r*0.3,z-0.112); hl.rotation.y = Math.PI; g.add(hl);
+}
 function buildBack(){
   const g = new THREE.Group();
-  const col = 0x2c3b5c;
-  g.add(ext(rrPath(new THREE.Shape(),6.8,14.4,0.95), 0.06, M(col,0.35,0.16)));
-  const plate = ext(rrPath(new THREE.Shape(),3.5,3.5,0.75), 0.07, M(0x3a4c73,0.4,0.15));
-  plate.position.set(-1.4,5.0,-0.1); g.add(plate);
-  const ring = M(0x9aa7c2,1,0.3), glass = M(0x050608,0.9,0.08);
-  [[-2.2,5.8],[-2.2,4.2],[-0.6,5.0]].forEach(([x,y])=>{
-    g.add(cyl(0.68,0.1,ring,x,y,-0.2));
-    g.add(cyl(0.5,0.12,glass,x,y,-0.22));
-    g.add(cyl(0.18,0.13,M(0x2b3a6b,1,0.05),x,y,-0.23));
-  });
-  g.add(cyl(0.16,0.06,M(0xfff3c2,0.1,0.3),-0.4,6.1,-0.16));
-  g.add(cyl(0.1,0.06,M(0x15171c,0.2,0.3),-0.4,4.0,-0.16));
-  // شعار دائري بسيط
-  g.add(cyl(0.45,0.02,M(0x4a5d88,0.5,0.2),0,-0.5,-0.06));
+  g.add(ext(rrPath(new THREE.Shape(),6.8,14.4,0.95), 0.06, backGlass(), 0.03));
+  // جزيرة الكاميرا بعرض الجهاز كله
+  const plate = ext(rrPath(new THREE.Shape(),6.8,3.0,0.95), 0.1, M(0x7d2435,0.5,0.22), 0.035);
+  plate.position.set(0,5.7,-0.1); g.add(plate);
+  // ثلاث عدسات بترتيب مثلث
+  lens(g,-2.2,6.25,-0.2,0.6);
+  lens(g,-0.8,6.25,-0.2,0.6);
+  lens(g,-1.5,5.0,-0.2,0.6);
+  // فلاش + لايدار + ميكروفون
+  g.add(cyl(0.22,0.05,M(0xfff3cf,0.2,0.3),1.25,6.3,-0.17));
+  g.add(torus(0.24,0.03,steel(),1.25,6.3,-0.19));
+  g.add(cyl(0.2,0.05,M(0x04060a,0.9,0.06),1.25,5.1,-0.17));
+  g.add(torus(0.22,0.025,steel(),1.25,5.1,-0.19));
+  g.add(cyl(0.06,0.04,M(0x000000),2.45,6.45,-0.17));
+  g.add(cyl(0.09,0.04,M(0x15171c,0.3,0.4),2.45,5.2,-0.17));
+  // حلقة MagSafe الخفيفة
+  const ms = new THREE.Mesh(new THREE.RingGeometry(1.55,1.6,80), M(0xa55168,0.6,0.35));
+  ms.rotation.y = Math.PI; ms.position.set(0,-1.2,-0.066); g.add(ms);
   return g;
 }
 
 /* ============ تعريف القطع ============ */
 const DEFS = [
   { id:'screen',    name:'شاشة',            build:buildScreen,     base:[0,0,0.45],       ex:[0,0.6,7.2],
-    desc:'شاشة OLED بزجاج واقي ولمس. أول قطعة بتتفك، وفيها الجزيرة الديناميكية وحساسات Face ID والكاميرا الأمامية.' },
+    desc:'شاشة OLED ببروموشن وزجاج Ceramic Shield. أول قطعة بتتفك، وفيها الدايناميك آيلاند الأصغر وحساسات Face ID والكاميرا الأمامية.' },
   { id:'screenFlex',name:'فلاتة ربط شاشة',  build:buildScreenFlex, base:[0,-6.0,0.3],     ex:[0,-0.6,5.9],
     desc:'كابل فلات بيوصل الشاشة والتاتش بالبوردة. بيتفك بالمقدّم قبل ما ترفع الشاشة تماماً عشان ما يتقطعش.' },
   { id:'earpiece',  name:'سماعة داخلية',    build:buildEarpiece,   base:[0,6.75,0.22],    ex:[0,1.2,4.8],
     desc:'سماعة المكالمات اللي في أعلى الشاشة. بتشتغل كمان مع السماعة السفلية في الستيريو.' },
   { id:'frame',     name:'فريم',            build:buildFrame,      base:[0,0,0],          ex:[0,0,3.4],
-    desc:'الإطار الخارجي المعدني اللي بيمسك كل القطع، وعليه أزرار الصوت والباور والأكشن وزر الكاميرا.' },
+    desc:'الإطار الخارجي من الألومنيوم بلون Cherry الموحد، وعليه أزرار الصوت والباور والأكشن وزر الكاميرا ومنفذ USB-C.' },
   { id:'powerFlex', name:'فلاتة باور',      build:buildPowerFlex,  base:[3.15,2.6,-0.2],  ex:[3.0,0.8,2.2],
     desc:'فلاتة زر التشغيل (الباور) بتوصل الضغطة للبوردة. غالباً بتتفك مع فلاتة الصوت حسب الموديل.' },
   { id:'middle',    name:'ميدل',            build:buildMiddle,     base:[0,0,-0.1],       ex:[0,0,1.8],
@@ -352,7 +413,7 @@ const DEFS = [
   { id:'chargeFlex',name:'فلاتة شحن',       build:buildChargeFlex, base:[0,-6.8,-0.3],    ex:[0,-2.2,-4.6],
     desc:'فلاتة الشحن بمنفذ USB-C والميكروفونات السفلية. أكتر قطعة بتتغير في الصيانة.' },
   { id:'back',      name:'ضهرية',           build:buildBack,       base:[0,0,-0.45],      ex:[0,0,-7.2],
-    desc:'الظهر الزجاجي مع نتوء الكاميرا الخلفية والفلاش، وبيدعم الشحن اللاسلكي.' },
+    desc:'الظهر الزجاجي بلون Cherry مع جزيرة الكاميرا بعرض الجهاز (3 عدسات + فلاش + لايدار)، وبيدعم الشحن اللاسلكي MagSafe.' },
 ];
 
 const parts = {};
@@ -364,12 +425,11 @@ DEFS.forEach(d=>{
     if(o.isMesh){
       o.material = o.material.clone();
       o.userData.partId = d.id;
-      o.material.userData.t = 1;
       mats.push(o.material);
     }
   });
   phone.add(g);
-  parts[d.id] = { ...d, group:g, mats, opacity:1, target:1, glow:false };
+  parts[d.id] = { ...d, group:g, mats, opacity:1, target:1 };
 });
 
 /* ============ واجهة المستخدم ============ */
@@ -398,7 +458,7 @@ function select(id){
     infoEl.style.display='block';
     infoEl.querySelector('h2').textContent = parts[id].name;
     infoEl.querySelector('p').textContent = parts[id].desc;
-    if(exEl.value < 0.5){ exEl.value = 1; }
+    if(parseFloat(exEl.value) < 0.5){ exEl.value = 1; }
   } else infoEl.style.display='none';
 }
 
@@ -407,8 +467,7 @@ const bSpin = document.getElementById('bSpin');
 const bTags = document.getElementById('bTags');
 bAuto.onclick = ()=>{ auto=!auto; bAuto.classList.toggle('on',auto); };
 bSpin.onclick = ()=>{ controls.autoRotate=!controls.autoRotate; bSpin.classList.toggle('on',controls.autoRotate); };
-bTags.onclick = ()=>{ showTags=!showTags; bTags.classList.toggle('on',showTags);
-  document.querySelectorAll('.tag').forEach(t=>t.style.display = showTags?'block':'none'); };
+bTags.onclick = ()=>{ showTags=!showTags; bTags.classList.toggle('on',showTags); };
 document.getElementById('bReset').onclick = ()=>{
   select(null); auto=false; bAuto.classList.remove('on');
   controls.autoRotate=false; bSpin.classList.remove('on');
@@ -422,11 +481,8 @@ function pick(e){
   const r = canvas.getBoundingClientRect();
   ptr.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
   ray.setFromCamera(ptr, camera);
-  const hit = ray.intersectObjects(allMeshes, false).find(h=>{
-    const p = parts[h.object.userData.partId];
-    return !selected || p.id===selected || true;
-  });
-  return hit ? hit.object.userData.partId : null;
+  const hits = ray.intersectObjects(allMeshes, false);
+  return hits.length ? hits[0].object.userData.partId : null;
 }
 let down = null;
 canvas.addEventListener('pointerdown', e=> down = {x:e.clientX,y:e.clientY});
@@ -447,7 +503,12 @@ canvas.addEventListener('pointermove', e=>{
 function placeCamera(){
   const a = innerWidth/innerHeight;
   const k = a < 0.8 ? 1.55 : a < 1.2 ? 1.2 : 1;
-  camera.position.set(17*k, 8.5*k, 29*k);
+  const r = 34*k, az = 0.65;
+  camera.position.set(
+    r*Math.sin(POLAR)*Math.sin(az),
+    r*Math.cos(POLAR),
+    r*Math.sin(POLAR)*Math.cos(az)
+  );
   controls.target.set(0,0,0);
   controls.update();
 }
@@ -470,13 +531,11 @@ function animate(){
   requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
 
-  // مقدمة: فك تلقائي عند فتح الصفحة
-  if(performance.now() - intro > 700 && intro){ exEl.value = 1; intro = 0; }
+  if(intro && performance.now() - intro > 700){ exEl.value = 1; intro = 0; }
 
   if(auto) exEl.value = 0.5 - 0.5*Math.cos(t*0.9);
   explode += (parseFloat(exEl.value) - explode) * 0.08;
 
-  const active = selected || null;
   for(const id in parts){
     const p = parts[id];
     p.group.position.set(
@@ -484,14 +543,15 @@ function animate(){
       p.base[1] + p.ex[1]*explode,
       p.base[2] + p.ex[2]*explode
     );
-    p.target = (active && id!==active) ? 0.14 : 1;
+    p.target = (selected && id!==selected) ? 0.14 : 1;
     p.opacity += (p.target - p.opacity) * 0.15;
-    const glow = (id===active) || (id===hovered);
+    const glow = (id===selected) || (id===hovered);
     p.mats.forEach(m=>{
       const tr = p.opacity < 0.995;
-      if(m.transparent !== tr){ m.transparent = tr; m.depthWrite = !tr; m.needsUpdate = true; }
-      m.opacity = p.opacity;
-      if(m.emissive) m.emissive.setHex(glow ? 0x1b3f8a : 0x000000);
+      if(m.transparent !== tr && !(m.userData.keepTransparent)){ m.transparent = tr; m.depthWrite = !tr; m.needsUpdate = true; }
+      if(!m.userData.keepTransparent) m.opacity = p.opacity;
+      else m.opacity = 0.55 * p.opacity;
+      if(m.emissive && !m.userData.noGlow) m.emissive.setHex(glow ? 0x6a1a3a : 0x000000);
     });
   }
 
