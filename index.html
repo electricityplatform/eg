@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.75, viewport-fit=cover">
+    <meta name="theme-color" content="#3a332b">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="favicon.png">
+    <title>Electricity</title>
+    <script>
+        (function () {
+            var t = 'system';
+            try { t = localStorage.getItem('theme') || 'system'; } catch (e) {}
+            var dark = t === 'dark' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (dark) document.documentElement.classList.add('dark');
+        })();
+    </script>
+    <script>
+        // جسر بين نظام الثيم القديم (كلاس dark على html) وثيمات DaisyUI.
+        // أي كود بيضيف/يشيل كلاس dark (زي شاشة الإعدادات) هيبدّل ثيم المكتبة تلقائياً.
+        (function () {
+            var root = document.documentElement;
+            function sync() {
+                var dark = root.classList.contains('dark');
+                root.setAttribute('data-theme', dark ? 'electricity-dark' : 'electricity-light');
+                // لون شريط المتصفح (بيتغيّر مع الوضع)
+                var m = document.querySelector('meta[name="theme-color"]');
+                if (m) m.setAttribute('content', dark ? '#1b1b1e' : '#3a332b');
+            }
+            sync();
+            new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['class'] });
+        })();
+    </script>
+
+    <!-- الخطوط -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- DaisyUI: مكتبة المكوّنات (أزرار، كروت، قوائم، تابات، ثيمات) -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // ربط ألوان DaisyUI بـ Tailwind: تقدر تكتب bg-primary / text-base-content/60 ... في أي ملف.
+        // وكمان blue-* القديمة اتحوّلت للون العلامة، فالشاشات اللي مش مرفوعة هنا بتتوحّد معاها.
+        const dz = (v) => `oklch(var(${v}) / <alpha-value>)`;
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: dz('--p'), 'primary-content': dz('--pc'),
+                        secondary: dz('--s'), 'secondary-content': dz('--sc'),
+                        accent: dz('--a'), 'accent-content': dz('--ac'),
+                        neutral: dz('--n'), 'neutral-content': dz('--nc'),
+                        'base-100': dz('--b1'), 'base-200': dz('--b2'), 'base-300': dz('--b3'), 'base-content': dz('--bc'),
+                        info: dz('--in'), success: dz('--su'), warning: dz('--wa'), error: dz('--er'),
+                        'info-content': dz('--inc'), 'success-content': dz('--suc'), 'warning-content': dz('--wac'), 'error-content': dz('--erc'),
+                        blue: {
+                            50: '#E8F7F8', 100: '#CDEEF0', 200: '#A3E0E4', 300: '#6FCBD2', 400: '#3DB0B9',
+                            500: '#1A97A2', 600: '#027F8A', 700: '#05707A', 800: '#085C64', 900: '#0B4850'
+                        }
+                    },
+                    fontFamily: { sans: ['"IBM Plex Sans Arabic"', '"Segoe UI"', 'Tahoma', 'sans-serif'] }
+                }
+            }
+        };
+    </script>
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- SheetJS للتصدير إلى XLSX -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- التنسيقات -->
+    <link rel="stylesheet" href="style.css?v=20261101-2">
+    <link rel="stylesheet" href="theme.css?v=20261104-18">
+</head>
+<body class="h-[100dvh] bg-base-100 text-base-content flex items-center justify-center overflow-hidden">
+
+    <!-- القائمة الجانبية (Sidebar) المخفية افتراضياً -->
+    <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-neutral/60 backdrop-blur-sm z-40 hidden transition-opacity opacity-0 duration-300"></div>
+    <div id="sideMenu" class="fixed top-0 right-0 h-full w-80 max-w-[86vw] shadow-2xl z-50 transform translate-x-full transition-transform duration-300 flex flex-col">
+        <div class="navbar text-white px-4 min-h-16">
+            <div class="flex-1 gap-3">
+                <span class="brand-chip"><img src="logo.png" alt="Electricity" class="logo-img" draggable="false"></span>
+                <h3 class="side-brand">ELECTRICITY</h3>
+            </div>
+            <button type="button" onclick="toggleSidebar()" class="btn btn-ghost btn-sm btn-circle text-white" aria-label="إغلاق القائمة">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div id="sidebarContent" class="flex-1 overflow-y-auto pt-4"></div>
+        <label class="side-search">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+            <input type="text" placeholder="بحث" aria-label="بحث في القائمة" oninput="filterSideMenu(this.value)">
+        </label>
+    </div>
+
+    <!-- الإطار الرئيسي -->
+    <main class="bg-base-100 w-full h-[100dvh] p-0 flex flex-col overflow-hidden">
+        <div id="appContainer" class="flex-1 flex flex-col overflow-hidden min-h-0 px-4 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6"></div>
+
+        <!-- الشريط السفلي: بيظهر بعد الدخول (مخفي في شاشة تسجيل الدخول من الـ CSS) -->
+        <nav class="bottom-nav flex-shrink-0" aria-label="التنقل السفلي">
+            <button type="button" onclick="renderMainDashboard()" class="bottom-nav-item" aria-label="الرئيسية">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                <span>الرئيسية</span>
+            </button>
+        </nav>
+    </main>
+
+    <!-- ملفات الجافاسكريبت (الترتيب مهم) -->
+    <script src="config.js?v=20261101-1"></script>
+    <script src="utils.js?v=20261102-3"></script>
+    <script src="layout.js?v=20261104-2"></script>
+    <script src="auth.js?v=20261102-1"></script>
+    <script src="dashboard.js?v=20261104-1"></script>
+    <script src="hero.js?v=20261104-2"></script>
+    <script src="phone3d.js?v=20261104-14"></script>
+    <script src="welcome.js?v=20261102-1"></script>
+    <script src="profile-photo.js?v=20261101-1"></script>
+    <!-- مركز البيانات (متقسم لـ 10 ملفات، الترتيب مهم: core الأول) -->
+    <script src="1-data-center-core.js?v=20261101-1"></script>
+    <script src="2-data-center-menu.js?v=20261101-1"></script>
+    <script src="3-data-center-users.js?v=20261101-1"></script>
+    <script src="4-data-center-models.js?v=20261101-1"></script>
+    <script src="5-data-center-compat-groups.js?v=20261101-1"></script>
+    <script src="6-data-center-compat.js?v=20261101-1"></script>
+    <script src="7-data-center-alerts.js?v=20261101-1"></script>
+    <script src="8-data-center-brands.js?v=20261101-1"></script>
+    <script src="9-data-center-spare-parts.js?v=20261101-1"></script>
+    <script src="10-data-center-partitions.js?v=20261101-1"></script>
+    <script src="general-settings.js?v=20261101-1"></script>
+    <script src="my-products.js?v=20261101-1"></script>
+    <script src="operation-center.js?v=20261101-1"></script>
+    <script src="profile.js?v=20261101-1"></script>
+    <script src="main.js?v=20261101-1"></script>
+    <script>
+        // تسجيل الـ service worker: بيخلي التطبيق يفتح ويتحدّث حتى لو مفيش نت (بعد أول زيارة بنت شغال)
+        if ('serviceWorker' in navigator) {
+            var hadController = !!navigator.serviceWorker.controller;
+
+            // لما نسخة جديدة تاخد مكان القديمة: نظهر شريط "فيه تحديث جديد" (مش في أول تثبيت)
+            navigator.serviceWorker.addEventListener('controllerchange', function () {
+                if (!hadController) { hadController = true; return; }
+                if (document.getElementById('updateBanner')) return;
+                var b = document.createElement('div');
+                b.id = 'updateBanner';
+                b.className = 'conn-banner online';
+                b.innerHTML = 'فيه تحديث جديد<button type="button" onclick="location.reload()">تحديث</button>';
+                document.body.appendChild(b);
+            });
+
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('sw.js').then(function (reg) {
+                    // نفحص عن تحديث كل ما ترجع للتطبيق
+                    document.addEventListener('visibilitychange', function () {
+                        if (!document.hidden) reg.update().catch(function () {});
+                    });
+                }).catch(function () {});
+            });
+        }
+    </script>
+</body>
+</html>
