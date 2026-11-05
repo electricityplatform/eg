@@ -1,7 +1,8 @@
 // ================= تليفون في الهيرو: Galaxy S24 Ultra مجسّم 3D بيتبني بالكود (من غير صور)، بيلف 360° بصباعك، واللمسة بتفككه لقطع الغيار =================
 // لوحة مستقلة في الشاشة الرئيسية. dashboard.js بينادي phone3dSectionHtml() ثم phone3dMount(). المكتبة (Three.js) بتتحمّل أول ما القسم يظهر.
 // المجسّم نفسه (الإطار والزجاج والعدسات والبوردة والبطارية والفلاتات...) متبني بالكود في p3BuildModel، وكل قطعة ليها اسمها.
-// الملف الوحيد اللي بيتحمّل: phone-3d/wallpaper.jpg (صورة شاشة التليفون). لو مش موجودة بيظهر خلفية بيج بدلها.
+// وهو متجمّع: التليفون بيظهر من صور حقيقية (وش، ضهر، جنب يمين، جنب شمال) في فولدر phone-3d.
+// ولما تلمسه بيتفك للقطع المفصّلة المتبنية بالكود. لو الصور مش موجودة بيفضل المجسّم المبني بالكود ظاهر وهو متجمّع.
 //
 // أسماء القطع اللي بتظهر على الشاشة (غيّرها لو أسماء قطع الغيار عندك في قاعدة البيانات مختلفة):
 const PHONE_PARTS = [
@@ -16,10 +17,17 @@ const PHONE_CAP_IDLE = 'لفّ التليفون بصباعك، أو المسه �
 const PHONE_CAP_OPEN = 'لفّ المجسم بصباعك في كل الاتجاهات، والمس قطعة لتحديدها ومرة تانية لفتح أسعارها';
 const THREE_SRC = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
 
-const PHONE_WALL = 'phone-3d/wallpaper.jpg';          // صورة شاشة التليفون (في فولدر phone-3d جنب index.html)
+const PHONE_IMGS = {                                   // صور التليفون (في فولدر phone-3d جنب index.html)
+    front: 'phone-3d/phone-front.webp', back: 'phone-3d/phone-back.webp',
+    sideR: 'phone-3d/phone-side-r.png', sideL: 'phone-3d/phone-side-l.png'
+};
 const PHONE_H = 1.65;                                  // ارتفاع التليفون في المشهد
 const P3_UNIT = PHONE_H / 16.23;                       // وحدة المجسّم (16.23 = طول الإطار) ← وحدة المشهد
 const PHONE_Z = 0.15, PHONE_CY = 0.1;                  // مكانه في المشهد
+// مقاسات جسم التليفون المتجمّع (بنفس نسب الصور): الطول 16.23، العرض، السُمك، نصف قطر الركن
+const P3_SH = 16.23, P3_SW = 7.78, P3_SD = 0.80, P3_SR = 0.8;
+// منطقة الشاشة جوه صورة الوش (x، y، العرض، الطول من 0 لـ 1) عشان نعرضها على الـ AMOLED وهو مفكوك
+const P3_SCR = [0.0337, 0.0173, 0.9327, 0.9666];
 const P3_SPREAD = 1.25;                                // معامل تباعد الطبقات وقت الفك (1 = زي التصميم الأصلي)
 
 // كل قطعة من المجسّم بتتبع أنهي اسم من أسماء PHONE_PARTS (اللي بتبدأ بيه). القطع اللي مالهاش اسم هنا (الإطار، الأزرار، S Pen، الفلاتات...) بتتفك للعرض بس.
@@ -37,7 +45,7 @@ const P3_ANCHOR = { screen: 'شاشة (', board: 'بورد', battery: 'بطار�
 let _p3 = null;          // حالة النموذج الحالي
 let _p3Pending = null;   // الـ host اللي بنبنيه دلوقتي (عشان ما نبنيش مرتين)
 let _threePromise = null;
-let _p3Wall;             // undefined = لسه ما اتحمّلتش، null = مش موجودة
+let _p3Photos;           // undefined = لسه ما اتحمّلتش، null = مش موجودة
 
 function phone3dLoadThree() {
     if (window.THREE) return Promise.resolve();
@@ -52,15 +60,20 @@ function phone3dLoadThree() {
     return _threePromise;
 }
 
-// صورة الشاشة: لو مش موجودة ما بنوقفش العرض، بنكمّل بالخلفية البيج
-function phone3dLoadWall() {
-    if (_p3Wall !== undefined) return Promise.resolve(_p3Wall);
-    return new Promise(res => {
+// صور التليفون: لو أي واحدة ناقصة ما بنوقفش العرض، بنكمّل بالمجسّم المبني بالكود
+function phone3dLoadPhotos() {
+    if (_p3Photos !== undefined) return Promise.resolve(_p3Photos);
+    const load = (src) => new Promise((res, rej) => {
         const im = new Image();
-        im.onload = () => { _p3Wall = im; res(im); };
-        im.onerror = () => { _p3Wall = null; res(null); };
-        im.src = PHONE_WALL;
+        im.onload = () => res(im);
+        im.onerror = () => rej(new Error('img ' + src));
+        im.src = src;
     });
+    const keys = Object.keys(PHONE_IMGS);
+    return Promise.all(keys.map(k => load(PHONE_IMGS[k]))).then(list => {
+        const o = {}; keys.forEach((k, i) => { o[k] = list[i]; });
+        return (_p3Photos = o);
+    }).catch(() => (_p3Photos = null));
 }
 
 // ---------- نقطة الدخول (من dashboard.js) ----------
@@ -82,10 +95,10 @@ function phone3dMount() {
     if (_p3) p3Dispose();
     if (_p3Io) { _p3Io.disconnect(); _p3Io = null; }
     _p3Pending = host;
-    Promise.all([phone3dLoadThree(), phone3dLoadWall()]).then(([, wall]) => {
+    Promise.all([phone3dLoadThree(), phone3dLoadPhotos()]).then(([, photos]) => {
         _p3Pending = null;
         if (!document.body.contains(host)) return;   // الشاشة اتعاد رسمها وإحنا بنحمّل
-        _p3 = p3Build(host, wall);
+        _p3 = p3Build(host, photos);
         _p3.active = true;
         p3Start();
         if ('IntersectionObserver' in window) {
@@ -122,7 +135,7 @@ function p3Environment(renderer) {
 let _p3Canv = {};   // كانفاسات الخامات متخزّنة: لو الشاشة اتفتحت تاني ما نرسمهاش من الأول
 let _p3TexI = 0;
 
-function p3BuildModel(wallImg) {
+function p3BuildModel(photos) {
     const T = THREE;
     const world = new T.Group();
     const parts = [], meshes = [];
@@ -143,7 +156,7 @@ function p3BuildModel(wallImg) {
         return t;
     }
 
-    // خلفية الشاشة (الصورة بتتحمّل من phone-3d/wallpaper.jpg ولو مش موجودة بتفضل الخلفية البيج)
+    // خلفية احتياطية للشاشة (بتظهر بس لو صورة الوش مش موجودة)
 const wall=tex(512,1120,(g,w,h)=>{
   // خلفية شاشة بلون البيج المتناسق مع هوية ELECTRICITY
   g.fillStyle='#e8dfc8';g.fillRect(0,0,w,h);
@@ -168,9 +181,14 @@ const wall=tex(512,1120,(g,w,h)=>{
   // شريط التنقل السفلي
   g.fillStyle='rgba(75,43,24,.75)';g.beginPath();g.roundRect?g.roundRect(w/2-54,1090,108,6,3):g.rect(w/2-54,1090,108,6);g.fill();
 });
-    if (wallImg) {
-        wall.image.getContext('2d').drawImage(wallImg, 0, 350, 512, 512);   // الصورة مربعة وبتتحط بعرض الشاشة
-        wall.needsUpdate = true;
+    // شاشة الـ AMOLED وهي مفكوكة: بنقصّ منطقة الشاشة من صورة الوش (من غير الإطار الأسود)
+    let screenMap = wall;
+    if (photos && photos.front) {
+        screenMap = new T.Texture(photos.front);
+        if (T.SRGBColorSpace) screenMap.colorSpace = T.SRGBColorSpace;
+        screenMap.anisotropy = 4;
+        screenMap.repeat.set(P3_SCR[2], P3_SCR[3]); screenMap.offset.set(P3_SCR[0], P3_SCR[1]);
+        screenMap.needsUpdate = true;
     }
 
 function rr(w,h,r,cx=0,cy=0){const s=new T.Shape(),x=-w/2+cx,y=-h/2+cy,P=Math.PI;s.moveTo(x+r,y);s.lineTo(x+w-r,y);s.absarc(x+w-r,y+r,r,-P/2,0);s.lineTo(x+w,y+h-r);s.absarc(x+w-r,y+h-r,r,0,P/2);s.lineTo(x+r,y+h);s.absarc(x+r,y+h-r,r,P/2,P);s.lineTo(x,y+r);s.absarc(x+r,y+r,r,P,1.5*P);return s}
@@ -199,32 +217,31 @@ const cy=(p,r,h,mt,x,y,z,s=24)=>add(p,new T.Mesh(new T.CylinderGeometry(r,r,h,s)
 function sl(p,w,h,r,d,mt,x,y,z){const b=Math.min(.06,d*.42);const g=new T.ExtrudeGeometry(rr(w-2*b,h-2*b,Math.max(r-b,.01)),{depth:d-2*b,bevelEnabled:true,bevelThickness:b,bevelSize:b,bevelSegments:4,curveSegments:16});g.translate(0,0,-(d-2*b)/2);return add(p,new T.Mesh(g,mt),x,y,z)}
 const brush=tex(256,256,(g,w,h)=>{g.fillStyle='#8f8d89';g.fillRect(0,0,w,h);let q=5;const r=()=>(q=(q*16807)%2147483647)/2147483647;for(let i=0;i<1100;i++){g.fillStyle=r()>.5?`rgba(255,255,255,${r()*.09})`:`rgba(0,0,0,${r()*.12})`;g.fillRect(0,r()*h,w,.6+r()*1.4)}});
 brush.wrapS=brush.wrapT=T.RepeatWrapping;
-const TIM=new T.MeshStandardMaterial({color:0xc2bfb8,map:brush,metalness:1,roughness:.3}),TD=M(0x9b9893,1,.3,{side:T.DoubleSide});const LS=new T.MeshPhysicalMaterial({color:0xf6f7f9,metalness:1,roughness:.03,clearcoat:1,clearcoatRoughness:.02,side:T.DoubleSide,envMapIntensity:2.6});
+const TIM=new T.MeshStandardMaterial({color:0x4a4d52,map:brush,metalness:.85,roughness:.42}),TD=M(0x9b9893,1,.3,{side:T.DoubleSide});const LS=new T.MeshPhysicalMaterial({color:0xf6f7f9,metalness:1,roughness:.03,clearcoat:1,clearcoatRoughness:.02,side:T.DoubleSide,envMapIntensity:2.6});
 const GL2=new T.MeshPhysicalMaterial({color:0x101418,roughness:.04,clearcoat:1,transparent:true,opacity:.22});
 const BK=M(0x08090b,.4,.5),DK2=M(0x23262b,.6,.4),TG=new T.MeshPhysicalMaterial({color:0x030304,metalness:.1,roughness:.05,clearcoat:1,clearcoatRoughness:.01,envMapIntensity:1.1}),rnd=(()=>{let s=11;return()=>(s=(s*16807)%2147483647)/2147483647})(),CU=M(0xc07a38,1,.3),GD=M(0xd9b44a,1,.25),FP=0xd98a2b;
 const lnT2=tex(256,256,(g,w)=>{const c=w/2;let a=g.createRadialGradient(c,c,0,c,c,c);[[0,'#04050a'],[.45,'#0b0d2a'],[.7,'#120e24'],[.88,'#1d2740'],[1,'#05060a']].forEach(s=>a.addColorStop(s[0],s[1]));g.fillStyle=a;g.fillRect(0,0,w,w);g.strokeStyle='rgba(170,150,255,.25)';g.lineWidth=2;for(let r=22;r<c*.9;r+=16){g.beginPath();g.arc(c,c,r,0,7);g.stroke()}g.fillStyle='rgba(255,255,255,.6)';g.beginPath();g.arc(c*.72,c*.7,9,0,7);g.fill()});
 const LM2=new T.MeshPhysicalMaterial({map:lnT2,metalness:.5,roughness:.12,clearcoat:1}),DM=new T.MeshPhysicalMaterial({color:0x0a0c14,roughness:.04,clearcoat:1,envMapIntensity:2,transparent:true,opacity:.35});
-const covV=tex(512,1024,(g,w,h)=>{let a=g.createLinearGradient(w*.3,0,w*.7,h);a.addColorStop(0,'#1c1d21');a.addColorStop(.5,'#0b0c0f');a.addColorStop(1,'#050506');g.fillStyle=a;g.fillRect(0,0,w,h);for(let i=0;i<4000;i++){g.fillStyle='rgba(255,255,255,'+Math.random()*.035+')';g.fillRect(Math.random()*w,Math.random()*h,1.5,1.5)}});
+const covV=tex(512,1024,(g,w,h)=>{let a=g.createLinearGradient(w*.3,0,w*.7,h);a.addColorStop(0,'#3a3d42');a.addColorStop(.5,'#2a2c30');a.addColorStop(1,'#1b1c1f');g.fillStyle=a;g.fillRect(0,0,w,h);for(let i=0;i<4000;i++){g.fillStyle='rgba(255,255,255,'+Math.random()*.035+')';g.fillRect(Math.random()*w,Math.random()*h,1.5,1.5)}});
 const sgT=tex(256,48,g=>{g.fillStyle='rgba(40,38,34,.5)';g.textAlign='center';g.font='700 26px sans-serif';g.fillText('SAMSUNG',128,34)});
 const socT=tex(128,128,(g,w)=>{g.fillStyle='#15171b';g.fillRect(0,0,w,w);g.fillStyle='#ddd';g.font='700 14px sans-serif';g.textAlign='center';g.fillText('Snapdragon',64,52);g.font='700 22px sans-serif';g.fillText('8 Gen 3',64,78)});
 const batT2=tex(512,700,(g,w,h)=>{let a=g.createLinearGradient(0,0,w,h);a.addColorStop(0,'#f2f4f6');a.addColorStop(1,'#cfd4da');g.fillStyle=a;g.fillRect(0,0,w,h);g.fillStyle='#111';g.fillRect(0,0,w,34);g.fillStyle='#fff';g.textAlign='center';g.font='700 22px sans-serif';g.fillText('SAMSUNG  Li-ion Polymer Battery',w/2,24);g.fillStyle='#1b1d22';g.font='700 40px sans-serif';g.fillText('EB-BS928ABY',w/2,110);g.font='600 28px sans-serif';g.fillText('3.88V  5000mAh  19.4Wh',w/2,160);g.font='20px sans-serif';g.textAlign='left';['Charging Voltage 4.45V','Please use approved chargers','Do not disassemble, puncture or burn','Made in Vietnam'].forEach((t,i)=>g.fillText(t,40,215+i*30));g.fillStyle='#d9b44a';g.fillRect(30,360,w-60,10);g.fillStyle='#222';g.font='700 38px sans-serif';g.fillText('CE',50,470);g.beginPath();g.arc(w-110,450,38,0,7);g.lineWidth=5;g.strokeStyle='#222';g.stroke();g.fillRect(w-190,425,60,50);g.font='18px monospace';g.fillText('R-41-SEC-EB-BS928ABY',40,620);g.fillText('GH82-33xxx  S/N R5CX00000000',40,650)});
 function fx(P,pts,w,col=FP){const m=M(col,.2,.6);for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],L=Math.hypot(b[0]-a[0],b[1]-a[1])+w*.3,o=new T.Mesh(new T.BoxGeometry(w,L,.03),m);o.rotation.z=Math.atan2(b[1]-a[1],b[0]-a[0])-Math.PI/2;add(P,o,(a[0]+b[0])/2,(a[1]+b[1])/2,0)}}
 const grille=(P,x,y,n,dx,z)=>{for(let i=0;i<n;i++)cy(P,.07,.06,BK,x+i*dx,y,z,10)};
 let P=part('زجاج الشاشة',[0,0,10.5],0,0,.43);sl(P,7.5,15.85,.6,.08,GL2);
-P=part('شاشة (Dynamic AMOLED)',[0,0,6.5],0,0,.31);sl(P,7.44,15.8,.58,.07,M(0x050608,.5,.4));add(P,shp(7.1,15.45,.5,new T.MeshBasicMaterial({map:wall})),0,0,.04);cy(P,.13,.02,BK,0,7.35,.045,20);bx(P,3.2,.9,.03,M(FP,.2,.6),0,-7.2,-.06);bx(P,1.1,.28,.08,BK,0,-7.65,-.06);bx(P,.5,.4,.06,DK2,1,-7.1,-.07);
+P=part('شاشة (Dynamic AMOLED)',[0,0,6.5],0,0,.31);sl(P,7.44,15.8,.58,.07,M(0x050608,.5,.4));add(P,shp(7.1,15.45,.5,new T.MeshBasicMaterial({map:screenMap,toneMapped:false})),0,0,.04);bx(P,3.2,.9,.03,M(FP,.2,.6),0,-7.2,-.06);bx(P,1.1,.28,.08,BK,0,-7.65,-.06);bx(P,.5,.4,.06,DK2,1,-7.1,-.07);
 P=part('بصمة تحت الشاشة',[0,0,4.6],0,-4.6,.26);sl(P,1.2,1.2,.3,.05,M(0x2c3646,.5,.4),0,0,0);
 P=part('كاميرا أمامية 12MP (سيلفي)',[0,0,2.2],0,7.35,.2);cy(P,.2,.12,BK,0,0,0,24);cy(P,.1,.03,M(0x1a2a5c,.9,.05),0,0,.07,16);
 P=part('فريم (الإطار التيتانيوم)',[0,0,0]);{const s=rr(7.9,16.23,.62);s.holes.push(rr(7.5,15.83,.5));add(P,new T.Mesh(new T.ExtrudeGeometry(s,{depth:.5,bevelEnabled:true,bevelThickness:.07,bevelSize:.05,bevelSegments:6,curveSegments:28}).translate(0,0,-.25),TIM));const q=rr(7.6,15.9,.55);q.holes.push(rr(6.7,3.5,.25,0,5.8));q.holes.push(rr(6.35,8.9,.35,-.1,-1.5));add(P,new T.Mesh(new T.ExtrudeGeometry(q,{depth:.07,bevelEnabled:false,curveSegments:20}).translate(0,0,-.1),DK2))}
 [[3.97,-5.9],[-3.97,-5.9],[3.97,5.9],[-3.97,5.9]].forEach(a=>bx(P,.05,.14,.46,BK,a[0],a[1],0));[[-2.6,8.12],[2.6,8.12],[-2.6,-8.12],[1.3,-8.12]].forEach(a=>bx(P,.14,.05,.46,BK,a[0],a[1],0));
 sl(P,1.05,.22,.1,.1,BK,.1,-8.12,0);grille(P,1.7,-8.12,8,.2,0);cy(P,.07,.1,BK,-1.15,-8.12,0,10);
 
-P=part('زر التشغيل',[1.8,0,0],3.98,1.5,0);sl(P,.3,1.3,.12,.1,TIM,0,0,0);
-P=part('أزرار الصوت',[1.8,0,0],3.98,3.6,0);sl(P,.3,2.4,.12,.1,TIM,0,0,0);bx(P,.04,.05,.12,BK,.14,0,0);
-P=part('قلم S Pen',[0,-9,0],3.4,-3.45,-.04);add(P,new T.Mesh(new T.CylinderGeometry(.15,.15,8,20),M(0x2a2c30,.8,.28)),0,0,0);add(P,new T.Mesh(new T.CylinderGeometry(.15,.045,.6,20),M(0x2a2c30,.8,.28)),0,-4.3,0);add(P,new T.Mesh(new T.CylinderGeometry(.08,.08,.3,12),SIL),0,4.15,0);[3.2,-3.4].forEach(y=>add(P,new T.Mesh(new T.CylinderGeometry(.155,.155,.1,20),SIL),0,y,0));
+P=part('زر التشغيل',[1.8,0,0],3.9,1.3,0);sl(P,.3,1.4,.12,.1,TIM,0,0,0);
+P=part('أزرار الصوت',[1.8,0,0],3.9,4.2,0);sl(P,.3,2.2,.12,.1,TIM,0,0,0);bx(P,.04,.05,.12,BK,.14,0,0);
 P=part('درج خط (SIM)',[0,-2.8,0],-2.75,-7.7,0);sl(P,1.35,.4,.1,.38,TIM,0,0,0);bx(P,.7,.05,.1,BK,.1,0,-.2);
 P=part('ظهر (غطاء زجاج خلفي)',[0,0,-9.5],0,0,-.43);sl(P,7.62,15.95,.55,.08,TG);add(P,shp(7.58,15.93,.52,new T.MeshPhysicalMaterial({map:covV,metalness:.1,roughness:.05,clearcoat:1,clearcoatRoughness:.01,envMapIntensity:1.1})).rotateY(Math.PI),0,0,-.046);add(P,new T.Mesh(new T.PlaneGeometry(2.4,.45),new T.MeshBasicMaterial({map:sgT,transparent:true})).rotateY(Math.PI),0,-5.1,-.056);
 function lens(n,x,y,r,k){const P=part(n,[0,0,-5.5-k],x,y,-.32),h=.22,z=-h*.55;add(P,new T.Mesh(new T.LatheGeometry([[r*1.1,0],[r*1.13,h*.4],[r*1.1,h],[r*1.03,h+.05],[r*.9,h+.05],[r*.86,h*.55],[r*.8,.02]].map(a=>new T.Vector2(a[0],a[1])),64).rotateX(-Math.PI/2),LS),0,0,0);cy(P,r*.86,.05,BK,0,0,z,48);add(P,new T.Mesh(new T.CircleGeometry(r*.78,56).rotateY(Math.PI),LM2),0,0,z-.03);add(P,new T.Mesh(new T.RingGeometry(r*.5,r*.58,48).rotateY(Math.PI),M(0x0b0b0d,.8,.3)),0,0,z-.035);add(P,new T.Mesh(new T.CircleGeometry(r*.8,48).rotateY(Math.PI),DM),0,0,z-.06);bx(P,r*2,r*2,.5,BK,0,0,.35)}
-lens('كاميرا خلفية 12MP (وايد)',2.55,6.8,.7,0);lens('كاميرا خلفية 200MP (رئيسية)',2.55,4.94,.7,.3);lens('كاميرا خلفية 10MP (تيليفوتو 3x)',2.55,3.08,.7,.6);lens('كاميرا خلفية 50MP (بيريسكوب 5x)',.75,6.8,.45,.9);lens('مستشعر إضافي (ToF)',.75,4.6,.42,1.2);
+lens('كاميرا خلفية 12MP (وايد)',2.55,6.8,.7,0);lens('كاميرا خلفية 200MP (رئيسية)',2.55,4.94,.7,.3);lens('كاميرا خلفية 10MP (تيليفوتو 3x)',2.55,3.08,.7,.6);
 P=part('فلاش LED + حساس الليزر + ميكروفون',[0,0,-5.5],.75,5.8,-.32);cy(P,.3,.1,TD,0,0,-.1,40);cy(P,.24,.13,BK,0,0,-.11,40);cy(P,.13,.06,M(0xe8e2d0,.2,.3,{emissive:0x332a10}),0,.95,-.1,20);
 P=part('بورد (اللوحة الأم)',[0,0,-3.2],0,5.85,-.02);sl(P,7.2,3.8,.35,.12,PCB);add(P,shp(7.1,3.7,.32,new T.MeshStandardMaterial({map:pcbT,metalness:.25,roughness:.5})).rotateY(Math.PI),0,0,-.07);
 [[-1.7,.2,1.9,1.7,.14],[.7,.5,1.5,1.2,.1],[-2.8,-1,1.1,1,.1],[2.6,-.7,1.3,1.2,.1],[-.5,-1.2,1.3,.8,.1]].forEach(c=>sl(P,c[2],c[3],.07,c[4],SIL,c[0],c[1],-(.06+c[4]/2)));add(P,new T.Mesh(new T.PlaneGeometry(1.5,1.5).rotateY(Math.PI),new T.MeshBasicMaterial({map:socT})),-1.7,.2,-.215);
@@ -252,7 +269,72 @@ parts.forEach(p=>{const bb=new T.Box3().setFromObject(p.g),s=new T.Vector3(),c=n
 }
 
 // ---------- بناء المشهد ----------
-function p3Build(host, wallImg) {
+// مستطيل بحواف دايرية (Shape) مرسوم حوالين نقطة الأصل
+function p3RRShape(w, h, r) {
+    r = Math.min(r, w / 2 - 0.001, h / 2 - 0.001);
+    const s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+    s.moveTo(x + r, y);
+    s.lineTo(x + w - r, y);
+    s.absarc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
+    s.lineTo(x + w, y + h - r);
+    s.absarc(x + w - r, y + h - r, r, 0, Math.PI / 2, false);
+    s.lineTo(x + r, y + h);
+    s.absarc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false);
+    s.lineTo(x, y + r);
+    s.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
+    return s;
+}
+
+// جسم التليفون وهو متجمّع: إطار + وش وضهر وجنبين من الصور الحقيقية (بنفس الوحدات بتاعة المجسّم المفصّل)
+function p3BuildShell(photos) {
+    const T = THREE;
+    const W = P3_SW, H = P3_SH, D = P3_SD, R = P3_SR;
+    const group = new T.Group(), mats = [], meshes = [];
+    const tex = (img) => {
+        const t = new T.Texture(img);
+        if (T.SRGBColorSpace) t.colorSpace = T.SRGBColorSpace;
+        t.anisotropy = 4; t.needsUpdate = true;
+        return t;
+    };
+    const photoMat = (img) => {
+        const m = new T.MeshBasicMaterial({ map: tex(img), toneMapped: false, transparent: true });
+        mats.push(m); return m;
+    };
+    const put = (mesh, order) => { mesh.renderOrder = order; group.add(mesh); meshes.push(mesh); return mesh; };
+
+    // الإطار (الحواف والأركان): ممتد بحيث الحجم الكلي بالظبط W × H × D
+    const bev = 0.02;
+    const edgeGeo = new T.ExtrudeGeometry(p3RRShape(W - bev * 2, H - bev * 2, R - bev), {
+        depth: D - bev * 2, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 3, curveSegments: 20
+    });
+    edgeGeo.translate(0, 0, -(D - bev * 2) / 2);
+    const edgeMat = new T.MeshStandardMaterial({ color: 0x34363a, metalness: 0.7, roughness: 0.4, transparent: true });
+    mats.push(edgeMat);
+    put(new T.Mesh(edgeGeo, edgeMat), 0);
+
+    // الوش والضهر: الصورة على مستطيل دايري بنفس مقاس الجسم
+    const face = (img) => {
+        const g = new T.ShapeGeometry(p3RRShape(W, H, R), 20);
+        const p = g.attributes.position, u = g.attributes.uv;
+        for (let i = 0; i < p.count; i++) u.setXY(i, p.getX(i) / W + 0.5, p.getY(i) / H + 0.5);
+        return new T.Mesh(g, photoMat(img));
+    };
+    const front = face(photos.front); front.position.z = D / 2 + 0.0008;
+    const backF = face(photos.back); backF.rotation.y = Math.PI; backF.position.z = -(D / 2 + 0.0008);
+    put(front, 1); put(backF, 1);
+
+    // الجنبين: الجزء المستقيم بس من الإطار (من غير الأركان)
+    const sideH = H - R * 2;
+    const sideR = new T.Mesh(new T.PlaneGeometry(D, sideH), photoMat(photos.sideR));
+    sideR.rotation.y = Math.PI / 2; sideR.position.x = W / 2 + 0.0008;
+    const sideL = new T.Mesh(new T.PlaneGeometry(D, sideH), photoMat(photos.sideL));
+    sideL.rotation.y = -Math.PI / 2; sideL.position.x = -(W / 2 + 0.0008);
+    put(sideR, 1); put(sideL, 1);
+
+    return { group, mats, meshes };
+}
+
+function p3Build(host, photos) {
     const T = THREE;
     host.innerHTML = '';
 
@@ -279,9 +361,11 @@ function p3Build(host, wallImg) {
     });
 
     // ---------- المجسّم: كل القطع جوه holder واحد (بيلف ويتكبّر/يتصغّر مع بعض) ----------
-    const model = p3BuildModel(wallImg);
+    const model = p3BuildModel(photos);
+    const shell = photos ? p3BuildShell(photos) : null;   // بدون صور: المجسّم المبني بالكود هو اللي بيظهر وهو متجمّع
     const holder = new T.Group();
     holder.add(model.world);
+    if (shell) holder.add(shell.group);
     holder.position.set(0, PHONE_CY, PHONE_Z);
     holder.scale.setScalar(P3_UNIT);
     scene.add(holder);
@@ -354,7 +438,7 @@ function p3Build(host, wallImg) {
     host.appendChild(back);
 
     const s = {
-        host, renderer, scene, camera, holder, model, keyed, anchors, keyMeshes, chips, lines, back, shadow,
+        host, renderer, scene, camera, holder, model, shell, keyed, anchors, keyMeshes, chips, lines, back, shadow,
         raycaster: new T.Raycaster(), vec: new T.Vector3(),
         ex: 0, target: 0, last: 0, raf: 0, active: false, selected: null,
         yaw: Math.PI, pitch: 0, vel: 0.45, vx: 0, vy: 0, init: true, dragging: false,   // زاوية الدوران (راديان)، سرعته، وهل الإصبع ماسك
@@ -503,11 +587,11 @@ function p3Pick(e) {
         -((e.clientY - rect.top) / rect.height) * 2 + 1
     );
     s.raycaster.setFromCamera(ndc, s.camera);
-    const hits = s.raycaster.intersectObjects(s.target === 0 ? s.model.meshes : s.keyMeshes, false);
+    const hits = s.raycaster.intersectObjects(s.target === 0 ? (s.shell ? s.shell.meshes : s.model.meshes) : s.keyMeshes, false);
     for (const h of hits) {
         const o = h.object;
         if (o.material.opacity < 0.5) continue;           // الزجاج الشفاف: نعدّي منه للي وراه
-        return o.userData.p.key || 'phone';
+        return (o.userData.p && o.userData.p.key) || 'phone';
     }
     return null;
 }
@@ -583,6 +667,13 @@ function p3Apply(s, e) {
         const t = p3Smooth((e - p.delay) / (1 - p.delay * 0.9));
         p.g.position.copy(p.exv).multiplyScalar(t).add(p.p0);
     });
+    // وهو متجمّع بنشوف جسم الصور، ولما يبدأ الفك بيخفت وتظهر القطع المفصّلة
+    if (s.shell) {
+        const w = 1 - p3Smooth(e / 0.35);
+        s.shell.mats.forEach(m => { m.opacity = w; });
+        s.shell.group.visible = w > 0.01;
+        s.model.world.visible = e > 0.04;
+    }
 }
 
 function p3Start() {
