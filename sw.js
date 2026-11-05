@@ -6,12 +6,12 @@
 // - ملفات الـ CDN (tailwind / daisyui / supabase / الخطوط): نعرض المخزن فوراً ونحدّثه في الخلفية.
 // - أي طلبات تانية (زي API بتاع Supabase) بنسيبها تعدّي من غير تدخل.
 
-const VERSION = '20261105-1';
+const VERSION = '20261105-2';
 const CACHE = 'electricity-shell-' + VERSION;
 const NETWORK_TIMEOUT_MS = 8000;
 
 // صور كروت الأقسام في الشاشة الرئيسية (في نفس فولدر index.html): بتتحمّل مع التثبيت عشان تظهر حتى لو مفيش نت.
-const CARD_IMAGES = ['buy-parts.jpg', 'compat.jpg', 'maintenance-alerts.jpg', 'repair-shops.jpg', 'phone-3d/wallpaper.jpg'];
+const CARD_IMAGES = ['buy-parts.jpg', 'compat.jpg', 'maintenance-alerts.jpg', 'repair-shops.jpg', 'phone-3d/phone-front.webp', 'phone-3d/phone-back.webp', 'phone-3d/phone-side-r.png', 'phone-3d/phone-side-l.png'];
 const CDN_HOSTS = [
     'cdn.tailwindcss.com',
     'cdn.jsdelivr.net',
